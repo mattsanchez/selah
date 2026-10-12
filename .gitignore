@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+coverage/
+next-env.d.ts
+*.tsbuildinfo
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Local configuration; .env.example is the template
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
