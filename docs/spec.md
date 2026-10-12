@@ -119,4 +119,4 @@ One TypeScript repo, chosen so Quark's workers and verification gates can build 
 10. **Embeddings and meaning search**: Voyage, hybrid search, related passages, my-items search, export; journeys 4 (meaning half) and 10.
 11. **Ask**: grounded Q&A with citations, related-passage suggestions in drafts; journey 8.
 
-Milestones 4-5 and 6-7 run in parallel after 3; 8 follows 6-7; 9 follows 8; 10 follows 4 and 8; 11 follows 5 and 10.
+Milestones 4, 5 and 6 run in parallel after 3; 7 follows 6; 8 follows 7; 9 follows 8; 10 follows 4 and 8; 11 follows 5 and 10.
