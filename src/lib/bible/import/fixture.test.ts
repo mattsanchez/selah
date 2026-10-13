@@ -31,14 +31,20 @@ describe("Bible fixture", () => {
       const file = JSON.parse(await readFile(fixtureUrl(source.id), "utf8"));
       expect(file.translation).toBe(source.id);
       expect(file.sourceSha256).toBe(source.contentSha256);
+      expect(file.formattingSha256).toBe(source.formatting?.contentSha256);
     }
   });
 
   it("round-trips through its file format", async () => {
     for (const source of BIBLE_SOURCES) {
-      expect(serializeFixture(source.id, source.contentSha256, records[source.id])).toBe(
-        await readFile(fixtureUrl(source.id), "utf8"),
-      );
+      expect(
+        serializeFixture(
+          source.id,
+          source.contentSha256,
+          records[source.id],
+          source.formatting?.contentSha256,
+        ),
+      ).toBe(await readFile(fixtureUrl(source.id), "utf8"));
     }
   });
 
@@ -232,22 +238,41 @@ describe("Bible fixture", () => {
     expect(fixture.kjv.get(43_003_016)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
     expect(fixture.kjv.get(43_003_017)?.breaks).toEqual([]);
     expect(paragraphs("kjv", 43)).toHaveLength(70);
-    // The KJV's paragraph marks stop at Acts 20; the WEB source marks no
-    // paragraphs in prose at all.
+    // The KJV's paragraph marks stop at Acts 20.
     expect(paragraphs("kjv", 45)).toEqual([]);
-    expect(paragraphs("web", 43)).toEqual([]);
-    expect(paragraphs("web", 45)).toEqual([]);
   });
 
-  it("marks the words of Jesus in the WEB and KJV, and not in the BSB", () => {
+  it("has the WEB's prose paragraphs, from its publisher's USFM", () => {
+    // John 3: Nicodemus comes (1-2), then each turn of the conversation.
+    const starts = [1, 2, 3, 4, 5, 6].map(
+      (verse) => fixture.web.get(43_003_000 + verse)!.breaks,
+    );
+    expect(starts).toEqual([
+      [{ offset: 0, kind: "paragraph" }],
+      [],
+      [{ offset: 0, kind: "paragraph" }],
+      [{ offset: 0, kind: "paragraph" }],
+      [{ offset: 0, kind: "paragraph" }],
+      [],
+    ]);
+    expect(fixture.web.get(45_001_008)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
+    expect(paragraphs("web", 43)).toHaveLength(318);
+    expect(paragraphs("web", 45)).toHaveLength(96);
+  });
+
+  it("marks the words of Jesus in all three translations", () => {
+    // The BSB's come from its publisher's USFM; four verses of John whose
+    // words differ there (6:42, 13:38, 14:31 and 15:27) are left unmarked.
+    expect(redLetter("bsb", 43)).toHaveLength(427);
     expect(redLetter("web", 43)).toHaveLength(436);
     expect(redLetter("kjv", 43)).toHaveLength(419);
     for (const { id } of BIBLE_SOURCES) {
       expect(redLetter(id, 19)).toEqual([]);
       expect(redLetter(id, 45)).toEqual([]);
     }
-    // The BSB source carries no red-letter markup.
-    expect(redLetter("bsb", 43)).toEqual([]);
+    for (const verse of [6_042, 13_038, 14_031, 15_027]) {
+      expect(words("bsb", 43_000_000 + verse)).toEqual([]);
+    }
   });
 
   it("marks part of a verse, a run of whole verses, and two spans in one verse", () => {
@@ -257,11 +282,21 @@ describe("Bible fixture", () => {
     expect(words("kjv", 43_003_003)).toEqual([
       "Verily, verily, I say unto thee, Except a man be born again, he cannot see the kingdom of God.",
     ]);
+    // The note in BSB John 3:3 falls before the closing quotation mark.
+    expect(words("bsb", 43_003_003)).toEqual([
+      "“Truly, truly, I tell you, no one can see the kingdom of God unless he is born again.”",
+    ]);
     expect(words("web", 43_003_002)).toEqual([]);
 
     // John 3:10-12: the speech opens mid-verse and runs through whole verses.
-    for (const id of ["web", "kjv"]) {
-      expect(fixture[id].get(43_003_010)!.wordsOfJesus[0].start).toBeGreaterThan(0);
+    expect(words("bsb", 43_003_010)).toEqual([
+      "“You are Israel’s teacher,”",
+      "“and you do not understand these things?",
+    ]);
+    for (const id of ["bsb", "web", "kjv"]) {
+      if (id !== "bsb") {
+        expect(fixture[id].get(43_003_010)!.wordsOfJesus[0].start).toBeGreaterThan(0);
+      }
       for (const verseId of [43_003_011, 43_003_012]) {
         const verse = fixture[id].get(verseId)!;
         expect(verse.wordsOfJesus).toEqual([{ start: 0, end: verse.text.length }]);
@@ -271,6 +306,10 @@ describe("Bible fixture", () => {
     expect(words("web", 43_021_015)).toEqual([
       "“Simon, son of Jonah, do you love me more than these?”",
       "“Feed my lambs.”",
+    ]);
+    expect(words("bsb", 43_021_015)).toEqual([
+      "“Simon son of John, do you love Me more than these?”",
+      "“Feed My lambs.”",
     ]);
     expect(words("kjv", 43_021_015)).toEqual([
       "Simon, son of Jonas, lovest thou me more than these?",

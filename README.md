@@ -51,9 +51,11 @@ pnpm import:bible bsb      # or only the ones you name: bsb, web, kjv
 ```
 
 It applies pending migrations, downloads each translation from the [Free Use Bible API](https://bible.helloao.org/) into `.cache/bible/` (ignored by git), verifies it against the checksum pinned in `src/lib/bible/import/sources.ts`, and loads the `translation` and `verse` tables.
+Two translations need a second download, from their publishers, for formatting the API leaves out: the BSB's red-letter text (berean.bible) and the WEB's prose paragraphs (ebible.org).
+These are pinned and verified the same way, and only their formatting is used: the words of every verse come from the first file. [DATA-LICENSES.md](DATA-LICENSES.md) says how the two are matched and what is left out.
 It is safe to re-run: a second run reuses the cached files and changes nothing.
 
-If it stops with a checksum mismatch, the upstream text has changed since it was pinned.
+If it stops with a checksum mismatch, the upstream text (or, for a second download, its text or formatting) has changed since it was pinned.
 Review the change, update the pin, and run `pnpm fixture:bible` to rebuild the fixture from the new text.
 
 Each verse is stored as plain text with its headings, footnotes, paragraph breaks and red-letter spans beside it as structured JSON (the shapes are in `src/lib/bible/types.ts`).

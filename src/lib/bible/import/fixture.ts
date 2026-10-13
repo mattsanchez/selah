@@ -12,6 +12,8 @@ type FixtureFile = {
   translation: string;
   // The pin of the source the file was built from.
   sourceSha256: string;
+  // The pin of its formatting source, when the translation has one.
+  formattingSha256?: string;
   verses: FixtureVerse[];
 };
 
@@ -23,6 +25,7 @@ export function serializeFixture(
   translationId: string,
   sourceSha256: string,
   verses: readonly VerseRecord[],
+  formattingSha256?: string,
 ): string {
   const lines = verses.map(
     ({ verseId, text, headings, footnotes, breaks, wordsOfJesus }) =>
@@ -36,7 +39,9 @@ export function serializeFixture(
       }),
   );
   return (
-    `{"translation":${JSON.stringify(translationId)},"sourceSha256":${JSON.stringify(sourceSha256)},"verses":[\n` +
+    `{"translation":${JSON.stringify(translationId)},"sourceSha256":${JSON.stringify(sourceSha256)},` +
+    (formattingSha256 ? `"formattingSha256":${JSON.stringify(formattingSha256)},` : "") +
+    `"verses":[\n` +
     `${lines.join(",\n")}\n]}\n`
   );
 }
