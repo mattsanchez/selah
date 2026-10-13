@@ -161,6 +161,26 @@ What share-alike covers: the notes as Selah stores and shows them are an adaptat
 Selah's code stays MIT: it reads and displays the notes and contains none of them.
 A writer's own reflections are their own. One that quotes a study note at length should credit it as above; one that reworks the notes into something new would be an adaptation, and CC BY-SA 4.0 would apply to it.
 
+## Selah's mirror of these files
+
+The publishers' addresses are not versioned, so Selah keeps a copy of every file named above, exactly as it was downloaded, as an asset of a GitHub release of this repository used only for data: <https://github.com/mattsanchez/selah/releases/tag/data-v1>.
+The imports download from there first and from the publisher second, and check either copy against the same pinned checksum.
+The README's [Data releases](README.md#data-releases) section says how a release is made.
+
+Each file is redistributed unmodified, under the terms above, which were read again on 2026-10-13 before the first release was published:
+
+| File | From | Terms it is mirrored under |
+| :--- | :--- | :--- |
+| BSB, WEB and KJV as JSON (three files) | Free Use Bible API, `bible.helloao.org` | The texts are public domain. AO Lab's site says it "adds no restrictions; each text keeps its own notice" and allows the files to be cached, stored and downloaded without expiry. |
+| BSB in USFM | `bereanbible.com` | Public domain: "Licensing is not required for any use." |
+| WEB in USFM | `ebible.org` | Public domain; the `copr.htm` inside the archive says "You may copy, publish, […] distribute, redistribute […] the World English Bible as much as you want". |
+| Cross references | `a.openbible.info` | CC BY 4.0, which allows redistribution with attribution. The attribution, "Cross references from OpenBible.info", is in the release's notices. |
+| MHC, JFB and Clarke SWORD modules (three files) | `crosswire.org` | The commentaries are public domain, and CrossWire's own configuration file in each package gives `DistributionLicense=Public Domain` (MHC's adds "Public Domain--Copy Freely"). CrossWire's wiki defines that field as the module's distribution license; its copyright page and module pages put no condition on redistributing public-domain modules. |
+| Tyndale Open Study Notes | `tyndaleopenresources.com` | CC BY-SA 4.0. The archive's `_README.txt` says "you may copy and redistribute this unmodified work as long as you provide clear attribution of the copyright held by Tyndale House Publishers". The archive is mirrored whole and unmodified, with that notice. |
+
+The release carries a `NOTICES.md` with each file's license notice and attribution, and a `MANIFEST.json` with each file's upstream address, download date, size and checksums.
+Nothing else is in it: no code, and nothing that is not public domain or openly licensed.
+
 ## In this repository
 
 The only Bible text committed to git is the test fixture in `src/db/seed/fixtures/bible/`: Psalms, John and Romans from each of the three translations above, as produced by the import.
@@ -170,3 +190,4 @@ The only study data committed is the fixture in `src/db/seed/fixtures/study/`, a
 `tyndale.json` there is an excerpt of Tyndale Open Study Notes (18 notes), adapted as described above and licensed CC BY-SA 4.0, not MIT. `cross-references.json` is from OpenBible.info, CC BY 4.0. The other three files are public domain.
 
 Full datasets are downloaded by `pnpm import:bible` and `pnpm import:study` into `.cache/`, which git ignores.
+The mirrored files are release assets, not part of the git history.

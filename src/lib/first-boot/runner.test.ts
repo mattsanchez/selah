@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { ChecksumError, DownloadError } from "@/lib/bible/import/download";
+import {
+  ChecksumError,
+  DownloadError,
+  SourcesFailedError,
+} from "@/lib/bible/import/download";
 import { BIBLE_SOURCES } from "@/lib/bible/import/sources";
 import { StudyChecksumError } from "@/lib/study/import/download";
 import { CROSS_REFERENCES } from "@/lib/study/sources";
 
-import { describeImportFailure, withDownloadRetries } from "./imports";
+import { describeImportFailure, describeOrigins, withDownloadRetries } from "./imports";
 import {
   FirstBootError,
   runFirstBoot,
@@ -39,7 +43,8 @@ function memoryStore(initial: BootStepRow[] = []) {
       });
     },
     start: async (id) => void Object.assign(find(id), { status: "running" }),
-    finish: async (id) => void Object.assign(find(id), { status: "done", message: null }),
+    finish: async (id, note) =>
+      void Object.assign(find(id), { status: "done", message: note ?? null }),
     fail: async (id, message) => void Object.assign(find(id), { status: "failed", message }),
     heartbeat: async () => {},
   };
@@ -71,6 +76,21 @@ describe("runFirstBoot", () => {
       ["a", 0, "done"],
       ["b", 1, "done"],
     ]);
+  });
+
+  it("records where a step says its files came from", async () => {
+    const { store, rows } = memoryStore();
+    const noted: BootStep = {
+      id: "a",
+      title: "a",
+      version: "1",
+      run: async () => "Downloaded from the mirror at github.com.",
+    };
+    await runFirstBoot([noted], store, quiet);
+    expect(rows()[0]).toMatchObject({
+      status: "done",
+      message: "Downloaded from the mirror at github.com.",
+    });
   });
 
   it("records a failure with its message and still runs the later steps", async () => {
@@ -196,6 +216,72 @@ describe("import failures", () => {
     expect(message).toContain("trying again will not help");
     expect(message).toContain("Everything that did load keeps working");
     expect(message).not.toContain("docker compose restart");
+  });
+
+  const mirrorCopy = { url: "https://github.com/mattsanchez/selah/releases/download/data-v1/x.zip", mirror: true };
+  const publisher = { url: CROSS_REFERENCES.downloadUrl, mirror: false };
+  const unreachable = (url: string) => new DownloadError(url, "the host could not be reached: ECONNREFUSED");
+
+  it("names both places when the mirror is down and the publisher's file changed", () => {
+    const error = new SourcesFailedError([
+      { ...mirrorCopy, error: unreachable(mirrorCopy.url) },
+      { ...publisher, error: new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64)) },
+    ]);
+    const { message } = describeImportFailure("The cross-reference data from OpenBible.info", error);
+    expect(message).toContain("Selah's mirror (github.com): could not download");
+    expect(message).toContain("the publisher (a.openbible.info): the file at");
+    expect(message).toContain("has changed since this version of Selah was released");
+    expect(message).toContain("can only load the mirror's copy");
+    expect(message).toContain("can reach github.com");
+    expect(message).toContain("docker compose restart app");
+    expect(message).not.toContain("trying again will not help");
+  });
+
+  it("names both hosts when neither can be reached", () => {
+    const error = new SourcesFailedError([
+      { ...mirrorCopy, error: unreachable(mirrorCopy.url) },
+      { ...publisher, error: unreachable(publisher.url) },
+    ]);
+    const { message } = describeImportFailure("The cross references", error);
+    expect(message).toContain("can reach github.com or a.openbible.info");
+    expect(message).toContain("docker compose restart app");
+  });
+
+  it("says retrying will not help when no place has the pinned file", () => {
+    const error = new SourcesFailedError([
+      { ...mirrorCopy, error: new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64), mirrorCopy) },
+      { ...publisher, error: new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64)) },
+    ]);
+    const { message } = describeImportFailure("The cross references", error);
+    expect(message).toContain("is not the file this version of Selah was released with");
+    expect(message).toContain("trying again will not help");
+    expect(message).not.toContain("docker compose restart");
+  });
+
+  it("says where a step's files came from", () => {
+    const fromMirror = { cached: false, from: mirrorCopy, failures: [] };
+    expect(describeOrigins([fromMirror, fromMirror])).toBe("Downloaded from the mirror at github.com.");
+    expect(
+      describeOrigins([
+        { cached: false, from: publisher, failures: [{ ...mirrorCopy, error: unreachable(mirrorCopy.url) }] },
+      ]),
+    ).toBe("Downloaded from a.openbible.info. Tried the mirror at github.com first, without success.");
+    expect(describeOrigins([{ cached: true, failures: [] }])).toBe("From files downloaded earlier.");
+  });
+
+  it("retries while a place that could not be reached may still have the file", async () => {
+    let tries = 0;
+    const mirrorDown = async () => {
+      tries++;
+      throw new SourcesFailedError([
+        { ...mirrorCopy, error: unreachable(mirrorCopy.url) },
+        { ...publisher, error: new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64)) },
+      ]);
+    };
+    await expect(withDownloadRetries(mirrorDown, { delayMs: 0, log: () => {} })).rejects.toThrow(
+      SourcesFailedError,
+    );
+    expect(tries).toBe(3);
   });
 
   it("any other failure keeps its reason and says how to retry", () => {

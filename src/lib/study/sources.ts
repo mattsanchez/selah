@@ -19,6 +19,10 @@ export type StudyDownload = {
   sourceUrl: string;
   downloadUrl: string;
   contentSha256: string;
+  // Set for a file that is left out of Selah's mirror
+  // (src/lib/bible/import/mirror.ts), which is then downloaded from the
+  // publisher only.
+  upstreamOnly?: boolean;
 };
 
 // OpenBible.info's cross references. They have no table of their own for

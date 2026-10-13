@@ -22,6 +22,9 @@ export type FormattingSource = {
   sourceUrl: string;
   downloadUrl: string;
   contentSha256: string;
+  // Set for a file that is left out of Selah's mirror (./mirror.ts), which is
+  // then downloaded from the publisher only.
+  upstreamOnly?: boolean;
 };
 
 export type BibleSource = {
@@ -36,6 +39,8 @@ export type BibleSource = {
   // Where the import downloads it from, and what it must hash to.
   downloadUrl: string;
   contentSha256: string;
+  // As in FormattingSource.
+  upstreamOnly?: boolean;
   stripFootnoteOrigin?: boolean;
   pilcrowParagraphs?: boolean;
   formatting?: FormattingSource;

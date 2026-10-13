@@ -15,7 +15,7 @@ const TONE = {
 } as const;
 
 // The first-boot steps, each with its state and, when it failed, why and how
-// to retry.
+// to retry; a loaded step says where its files came from.
 export function FirstBootSteps({ status }: { status: FirstBootStatus }) {
   return (
     <ul className="divide-y divide-stone-200 rounded-md border border-stone-200 dark:divide-stone-800 dark:border-stone-800">
@@ -31,6 +31,9 @@ export function FirstBootSteps({ status }: { status: FirstBootStatus }) {
             <p className="mt-1.5 text-sm whitespace-pre-line text-stone-700 dark:text-stone-300">
               {step.message}
             </p>
+          )}
+          {step.status === "done" && step.message && (
+            <p className="mt-0.5 text-sm text-stone-500 dark:text-stone-400">{step.message}</p>
           )}
         </li>
       ))}

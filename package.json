@@ -23,6 +23,7 @@
     "fixture:bible": "tsx scripts/build-bible-fixture.ts",
     "import:study": "tsx scripts/import-study.ts",
     "fixture:study": "tsx scripts/build-study-fixture.ts",
+    "data:release": "tsx scripts/data-release.ts",
     "e2e:serve": "export AI_PROVIDER=stub && next build && next start --hostname 127.0.0.1 --port ${E2E_PORT:-3000}",
     "e2e": "playwright test",
     "build:boot": "esbuild scripts/boot.ts --bundle --platform=node --format=esm --target=node22 --external:@node-rs/argon2 --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\" --outfile=dist/boot.mjs",

@@ -1,3 +1,4 @@
+import { describeOrigin, type Origin } from "../src/lib/bible/import/download";
 import { fetchCommentary, fetchCrossReferences } from "../src/lib/study/import/download";
 import {
   COMMENTARY_SOURCES,
@@ -28,16 +29,25 @@ export function selectStudySources(args: readonly string[]): {
   };
 }
 
-const verified = (source: StudyDownload, cached: boolean) =>
-  `${source.name}: ${cached ? "cached" : "downloaded"}, checksum ${source.contentSha256.slice(0, 12)}… verified`;
+const verified = (source: StudyDownload, origin: Origin) =>
+  `${source.name}: ${describeOrigin(origin)}, checksum ${source.contentSha256.slice(0, 12)}… verified`;
 
-// Where downloads are kept and where progress is reported; first boot keeps
-// them in the data directory.
-type StudyFetchOptions = { cacheDir?: string; log?: (message: string) => void };
+// Where downloads are kept, where progress is reported and who is told where
+// each file came from; first boot keeps downloads in the data directory.
+type StudyFetchOptions = {
+  cacheDir?: string;
+  log?: (message: string) => void;
+  used?: (origin: Origin) => void;
+};
 
-export async function fetchCrossReferenceRows({ log = console.log, ...cache }: StudyFetchOptions = {}) {
-  const { rows, skipped, cached } = await fetchCrossReferences(CROSS_REFERENCES, cache);
-  log(verified(CROSS_REFERENCES, cached));
+export async function fetchCrossReferenceRows({
+  log = console.log,
+  used,
+  ...cache
+}: StudyFetchOptions = {}) {
+  const { rows, skipped, ...origin } = await fetchCrossReferences(CROSS_REFERENCES, cache);
+  used?.(origin);
+  log(verified(CROSS_REFERENCES, origin));
   if (skipped.length > 0) {
     log(
       `${CROSS_REFERENCES.name}: ${skipped.length} lines skipped: ` +
@@ -49,10 +59,11 @@ export async function fetchCrossReferenceRows({ log = console.log, ...cache }: S
 
 export async function fetchCommentaryRecords(
   source: CommentarySource,
-  { log = console.log, ...cache }: StudyFetchOptions = {},
+  { log = console.log, used, ...cache }: StudyFetchOptions = {},
 ) {
-  const { records, skipped, cached } = await fetchCommentary(source, cache);
-  log(verified(source, cached));
+  const { records, skipped, ...origin } = await fetchCommentary(source, cache);
+  used?.(origin);
+  log(verified(source, origin));
   if (skipped.length > 0) {
     log(`${source.name}: ${skipped.length} notes skipped: ${skipped.join(", ")}`);
   }

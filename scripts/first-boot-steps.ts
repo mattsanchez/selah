@@ -4,7 +4,12 @@ import type { Db } from "../src/db/client";
 import { loadTranslation } from "../src/lib/bible/import/load";
 import { BIBLE_SOURCES, type BibleSource } from "../src/lib/bible/import/sources";
 import { dataDir } from "../src/lib/env";
-import { describeImportFailure, withDownloadRetries } from "../src/lib/first-boot/imports";
+import type { Origin } from "../src/lib/bible/import/download";
+import {
+  describeImportFailure,
+  describeOrigins,
+  withDownloadRetries,
+} from "../src/lib/first-boot/imports";
 import type { BootStep } from "../src/lib/first-boot/runner";
 import {
   countCommentary,
@@ -28,15 +33,20 @@ import { fetchCommentaryRecords, fetchCrossReferenceRows } from "./study-sources
 
 // A step that downloads pinned files and loads them. `load` does the work,
 // downloading into `cacheDir` and reporting through `log`; this adds what
-// every import needs: a failed download is tried again, and a failure is
-// recorded as a message naming the source and saying how to retry.
+// every import needs: a failed download is tried again, a failure is recorded
+// as a message naming each place that was tried and saying how to retry, and
+// a success records where the files came from (`used` collects that).
 function importStep(step: {
   id: string;
   title: string;
   version: string;
   // How failure messages name it, e.g. "The World English Bible".
   what: string;
-  load: (context: { cacheDir: string; log: (message: string) => void }) => Promise<void>;
+  load: (context: {
+    cacheDir: string;
+    log: (message: string) => void;
+    used: (origin: Origin) => void;
+  }) => Promise<void>;
 }): BootStep {
   const { id, title, version, what, load } = step;
   return {
@@ -44,13 +54,22 @@ function importStep(step: {
     title,
     version,
     run: async ({ log }) => {
+      // Only the try that succeeds counts: an earlier one may have got one
+      // of the step's two files before the other failed.
+      let origins: Origin[] = [];
       try {
-        await withDownloadRetries(() => load({ cacheDir: path.join(dataDir(), "cache"), log }), {
-          log,
-        });
+        await withDownloadRetries(
+          () => {
+            origins = [];
+            const used = (origin: Origin) => void origins.push(origin);
+            return load({ cacheDir: path.join(dataDir(), "cache"), log, used });
+          },
+          { log },
+        );
       } catch (error) {
         throw describeImportFailure(what, error);
       }
+      return describeOrigins(origins);
     },
   };
 }
@@ -62,10 +81,11 @@ function bibleStep(db: Db, source: BibleSource): BootStep {
     // The pins: a release that changes one loads that translation again.
     version: [source.contentSha256, source.formatting?.contentSha256 ?? ""].join(":"),
     what: `The ${source.name}`,
-    load: async ({ cacheDir, log }) => {
+    load: async ({ cacheDir, log, used }) => {
       const verses = await fetchVerses(source, undefined, {
         cacheDir: path.join(cacheDir, "bible"),
         log,
+        used,
       });
       await loadTranslation(db, source, verses, { prune: true });
       log(`${source.abbrev}: ${verses.length} verses loaded`);
@@ -82,8 +102,12 @@ function crossReferencesStep(db: Db): BootStep {
     title: "Cross references (OpenBible.info)",
     version: CROSS_REFERENCES.contentSha256,
     what: "The cross-reference data from OpenBible.info",
-    load: async ({ cacheDir, log }) => {
-      const rows = await fetchCrossReferenceRows({ cacheDir: path.join(cacheDir, "study"), log });
+    load: async ({ cacheDir, log, used }) => {
+      const rows = await fetchCrossReferenceRows({
+        cacheDir: path.join(cacheDir, "study"),
+        log,
+        used,
+      });
       await loadCrossReferences(db, rows, { replace: true });
       log(`${CROSS_REFERENCES.name}: ${await countCrossReferences(db)} cross references loaded`);
     },
@@ -96,10 +120,11 @@ function commentaryStep(db: Db, source: CommentarySource): BootStep {
     title: source.name,
     version: source.contentSha256,
     what: source.name,
-    load: async ({ cacheDir, log }) => {
+    load: async ({ cacheDir, log, used }) => {
       const records = await fetchCommentaryRecords(source, {
         cacheDir: path.join(cacheDir, "study"),
         log,
+        used,
       });
       await loadCommentary(db, source, records, { replace: true });
       log(`${source.name}: ${await countCommentary(db, source.id)} entries loaded`);

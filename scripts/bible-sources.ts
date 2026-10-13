@@ -1,4 +1,9 @@
-import { fetchFormatting, fetchSource } from "../src/lib/bible/import/download";
+import {
+  describeOrigin,
+  fetchFormatting,
+  fetchSource,
+  type Origin,
+} from "../src/lib/bible/import/download";
 import {
   applyFormatting,
   type FormattingReport,
@@ -61,13 +66,19 @@ function describe(report: FormattingReport): string {
 export async function fetchVerses(
   source: BibleSource,
   books?: readonly string[],
-  // Where downloads are kept; first boot keeps them in the data directory.
-  options: { cacheDir?: string; log?: (message: string) => void } = {},
+  // Where downloads are kept (first boot keeps them in the data directory),
+  // and who is told where each file came from.
+  options: {
+    cacheDir?: string;
+    log?: (message: string) => void;
+    used?: (origin: Origin) => void;
+  } = {},
 ): Promise<VerseRecord[]> {
-  const { log = console.log, ...cache } = options;
-  const { translation, cached } = await fetchSource(source, cache);
+  const { log = console.log, used, ...cache } = options;
+  const { translation, ...origin } = await fetchSource(source, cache);
+  used?.(origin);
   log(
-    `${source.abbrev}: ${cached ? "cached" : "downloaded"}, checksum ${source.contentSha256.slice(0, 12)}… verified`,
+    `${source.abbrev}: ${describeOrigin(origin)}, checksum ${source.contentSha256.slice(0, 12)}… verified`,
   );
   const verses = normalizeTranslation(translation, {
     translationId: source.id,
@@ -79,8 +90,9 @@ export async function fetchVerses(
   const { formatting } = source;
   if (!formatting) return verses;
   const usfm = await fetchFormatting({ ...source, formatting }, cache);
+  used?.(usfm);
   log(
-    `${source.abbrev}: formatting ${usfm.cached ? "cached" : "downloaded"}, checksum ${formatting.contentSha256.slice(0, 12)}… verified`,
+    `${source.abbrev}: formatting ${describeOrigin(usfm)}, checksum ${formatting.contentSha256.slice(0, 12)}… verified`,
   );
   const formatted = applyFormatting(
     verses,

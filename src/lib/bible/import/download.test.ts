@@ -7,13 +7,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ChecksumError,
   contentSha256,
-  download,
+  describeOrigin,
   DownloadError,
   fetchFormatting,
   fetchSource,
+  formattingFile,
   formattingSha256,
+  isRetryable,
+  sourceFile,
+  SourcesFailedError,
+  type SourceFailure,
 } from "./download";
 import type { HelloaoTranslation } from "./helloao";
+import { DATA_RELEASE, dataReleaseUrl, downloadSources, mirrorUrl } from "./mirror";
 import { BIBLE_SOURCES, type BibleSource } from "./sources";
 import { parseUsfmBook } from "./usfm";
 import { zip } from "./zip.fixture";
@@ -89,11 +95,13 @@ describe("fetchSource", () => {
     const fetchImpl = respond(original);
 
     const first = await fetchSource(source, { cacheDir, fetchImpl });
-    expect(first).toEqual({ translation: original, cached: false });
+    expect(first).toMatchObject({ translation: original, cached: false });
+    // The publisher, when no mirror is configured.
+    expect(first.from).toEqual({ url: source.downloadUrl, mirror: false });
     expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(source.downloadUrl);
 
     const second = await fetchSource(source, { cacheDir, fetchImpl });
-    expect(second).toEqual({ translation: original, cached: true });
+    expect(second).toEqual({ translation: original, cached: true, failures: [] });
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
@@ -121,7 +129,7 @@ describe("fetchSource", () => {
       { ...source, contentSha256: contentSha256(revised) },
       { cacheDir, fetchImpl },
     );
-    expect(result).toEqual({ translation: revised, cached: false });
+    expect(result).toMatchObject({ translation: revised, cached: false });
   });
 
   it("reports an unreachable host as a download error naming the file", async () => {
@@ -206,7 +214,7 @@ describe("formatting sources", () => {
     expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(formatted.formatting.downloadUrl);
 
     const second = await fetchFormatting(formatted, { cacheDir, fetchImpl });
-    expect(second).toEqual({ books: first.books, cached: true });
+    expect(second).toEqual({ books: first.books, cached: true, failures: [] });
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
@@ -263,31 +271,165 @@ describe("BIBLE_SOURCES", () => {
   });
 });
 
-describe("download", () => {
-  const bytes = new TextEncoder().encode("the file");
-  const serve = (working: string) =>
-    vi.fn<typeof fetch>(async (input) => {
-      if (String(input) !== working) throw new TypeError("fetch failed");
-      return new Response(bytes);
+describe("the mirror", () => {
+  const mirror = "https://mirror.test/data-v9";
+  const mirrorCopy = `${mirror}/${sourceFile(source).name}`;
+  const body = (translation: HelloaoTranslation) => new Response(JSON.stringify(translation));
+  const offline = () => {
+    throw new TypeError("fetch failed", { cause: new Error("connect ECONNREFUSED") });
+  };
+  // Answers each URL with what `routes` gives for it.
+  const serve = (routes: Record<string, () => Response>) =>
+    vi.fn<typeof fetch>(async (input) => routes[String(input)]());
+  const asked = (fetchImpl: ReturnType<typeof serve>) => fetchImpl.mock.calls.map(([url]) => url);
+
+  it("is asked first, and the publisher is not asked when it has the file", async () => {
+    const fetchImpl = serve({ [mirrorCopy]: () => body(original), [source.downloadUrl]: offline });
+
+    const result = await fetchSource(source, { cacheDir, fetchImpl, mirror });
+    expect(result).toEqual({
+      translation: original,
+      cached: false,
+      from: { url: mirrorCopy, mirror: true },
+      failures: [],
     });
-
-  it("takes the file from the first URL that answers, in the order given", async () => {
-    const urls = ["https://mirror.test/file", "https://upstream.test/file"];
-
-    const mirrorUp = serve(urls[0]);
-    expect(await download(urls, mirrorUp)).toEqual(bytes);
-    expect(mirrorUp).toHaveBeenCalledTimes(1);
-
-    const mirrorDown = serve(urls[1]);
-    expect(await download(urls, mirrorDown)).toEqual(bytes);
-    expect(mirrorDown.mock.calls.map(([input]) => input)).toEqual(urls);
+    expect(asked(fetchImpl)).toEqual([mirrorCopy]);
+    expect(describeOrigin(result)).toBe("downloaded from the mirror at mirror.test");
   });
 
-  it("reports the last URL when none answers", async () => {
-    const failure = await download(["https://a.test/x", "https://b.test/x"], serve("nowhere")).catch(
-      (error) => error,
+  it("loads the pinned copy from the mirror when the publisher's file has moved on", async () => {
+    const fetchImpl = serve({
+      [mirrorCopy]: () => body(original),
+      [source.downloadUrl]: () => body(build("Jesus wept. (rev. 2)")),
+    });
+
+    const { translation, failures } = await fetchSource(source, { cacheDir, fetchImpl, mirror });
+    expect(translation).toEqual(original);
+    expect(failures).toEqual([]);
+    expect(await readdir(cacheDir)).toEqual([sourceFile(source).name]);
+  });
+
+  it("falls back to the publisher when the mirror cannot be reached", async () => {
+    for (const down of [offline, () => new Response("Not Found", { status: 404 })]) {
+      const dir = await mkdtemp(path.join(cacheDir, "run-"));
+      const fetchImpl = serve({ [mirrorCopy]: down, [source.downloadUrl]: () => body(original) });
+
+      const result = await fetchSource(source, { cacheDir: dir, fetchImpl, mirror });
+      expect(result.translation).toEqual(original);
+      expect(result.from).toEqual({ url: source.downloadUrl, mirror: false });
+      expect(result.failures).toMatchObject([{ url: mirrorCopy, mirror: true }]);
+      expect(result.failures[0].error).toBeInstanceOf(DownloadError);
+      expect(asked(fetchImpl)).toEqual([mirrorCopy, source.downloadUrl]);
+      expect(describeOrigin(result)).toMatch(
+        /^downloaded from example\.test \(the mirror at mirror\.test was not used: /,
+      );
+    }
+  });
+
+  it("is trusted no more than the publisher: a copy that fails the pin is passed over", async () => {
+    const fetchImpl = serve({
+      [mirrorCopy]: () => body(build("Jesus laughed.")),
+      [source.downloadUrl]: () => body(original),
+    });
+
+    const result = await fetchSource(source, { cacheDir, fetchImpl, mirror });
+    expect(result.translation).toEqual(original);
+    expect(result.from?.mirror).toBe(false);
+    expect(result.failures[0].error).toBeInstanceOf(ChecksumError);
+    expect(result.failures[0].error.message).toContain(mirrorCopy);
+    expect(result.failures[0].error.message).not.toContain("upstream text has changed");
+  });
+
+  it("reports every place when none has the pinned file, and caches nothing", async () => {
+    const changed = () => body(build("Jesus wept. (rev. 2)"));
+
+    const neither = await fetchSource(source, {
+      cacheDir,
+      mirror,
+      fetchImpl: serve({ [mirrorCopy]: offline, [source.downloadUrl]: changed }),
+    }).catch((error) => error);
+    expect(neither).toBeInstanceOf(SourcesFailedError);
+    expect(neither.failures.map((failure: SourceFailure) => [failure.url, failure.error.name])).toEqual([
+      [mirrorCopy, "DownloadError"],
+      [source.downloadUrl, "ChecksumError"],
+    ]);
+    // The mirror may be back later, and it has the pinned copy.
+    expect(isRetryable(neither)).toBe(true);
+
+    const bothChanged = await fetchSource(source, {
+      cacheDir,
+      mirror,
+      fetchImpl: serve({ [mirrorCopy]: changed, [source.downloadUrl]: changed }),
+    }).catch((error) => error);
+    expect(bothChanged).toBeInstanceOf(SourcesFailedError);
+    expect(isRetryable(bothChanged)).toBe(false);
+    expect(await readdir(cacheDir)).toEqual([]);
+  });
+
+  it("is not asked when turned off, or for a file that is not in it", async () => {
+    const fetchImpl = serve({ [source.downloadUrl]: () => body(original) });
+    await fetchSource(source, { cacheDir, fetchImpl, mirror: null });
+    expect(asked(fetchImpl)).toEqual([source.downloadUrl]);
+
+    const upstreamOnly = { ...source, id: "other", upstreamOnly: true };
+    const second = serve({ [source.downloadUrl]: () => body(original) });
+    await fetchSource(upstreamOnly, { cacheDir, fetchImpl: second, mirror });
+    expect(asked(second)).toEqual([source.downloadUrl]);
+  });
+
+  it("serves formatting files under their own names", async () => {
+    const withFormatting = BIBLE_SOURCES.find((s) => s.formatting)!;
+    const { name } = formattingFile({ ...withFormatting, formatting: withFormatting.formatting! });
+    expect(name).toBe(
+      `${withFormatting.id}-formatting-${withFormatting.formatting!.contentSha256.slice(0, 12)}.zip`,
     );
-    expect(failure).toBeInstanceOf(DownloadError);
-    expect(failure.url).toBe("https://b.test/x");
+  });
+});
+
+describe("mirrorUrl", () => {
+  it("is the data release this version is pinned against, unless overridden", () => {
+    expect(DATA_RELEASE).toMatch(/^data-/);
+    expect(mirrorUrl({})).toBe(
+      `https://github.com/mattsanchez/selah/releases/download/${DATA_RELEASE}`,
+    );
+    expect(mirrorUrl({ SELAH_DATA_MIRROR: "  " })).toBe(dataReleaseUrl());
+    expect(dataReleaseUrl("data-v7")).toBe(
+      "https://github.com/mattsanchez/selah/releases/download/data-v7",
+    );
+  });
+
+  it("can be another mirror, or off", () => {
+    expect(mirrorUrl({ SELAH_DATA_MIRROR: "https://files.example.org/selah/" })).toBe(
+      "https://files.example.org/selah",
+    );
+    for (const off of ["off", "OFF", "none", "false", "0"]) {
+      expect(mirrorUrl({ SELAH_DATA_MIRROR: off })).toBeUndefined();
+    }
+    expect(() => mirrorUrl({ SELAH_DATA_MIRROR: "files.example.org" })).toThrow("SELAH_DATA_MIRROR");
+    expect(() => mirrorUrl({ SELAH_DATA_MIRROR: "ftp://files.example.org" })).toThrow("http");
+  });
+
+  it("puts the mirror's copy before the publisher's", () => {
+    const file = { name: "bsb-a997d84c4cdc.json", upstreamUrl: "https://up.test/x", mirrored: true };
+    expect(downloadSources(file, "https://m.test/v1")).toEqual([
+      { url: "https://m.test/v1/bsb-a997d84c4cdc.json", mirror: true },
+      { url: "https://up.test/x", mirror: false },
+    ]);
+    expect(downloadSources(file, undefined)).toEqual([{ url: "https://up.test/x", mirror: false }]);
+    expect(downloadSources({ ...file, mirrored: false }, "https://m.test/v1")).toEqual([
+      { url: "https://up.test/x", mirror: false },
+    ]);
+  });
+
+  it("reads the override from the environment when no mirror is given", async () => {
+    vi.stubEnv("SELAH_DATA_MIRROR", "https://own.test/files");
+    try {
+      const own = `https://own.test/files/${sourceFile(source).name}`;
+      const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify(original)));
+      const { from } = await fetchSource(source, { cacheDir, fetchImpl });
+      expect(from).toEqual({ url: own, mirror: true });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
