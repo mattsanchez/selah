@@ -13,6 +13,8 @@ type TranslationPickerProps = {
   defaultId: string;
   // The passage's path, without the `t` parameter.
   path: string;
+  // The rest of the query to keep across a choice, such as "v=john-3.16".
+  keep?: string;
 };
 
 // Chooses which translations the reader shows: one for the plain reader, two
@@ -23,6 +25,7 @@ export function TranslationPicker({
   selected,
   defaultId,
   path,
+  keep,
 }: TranslationPickerProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -36,7 +39,8 @@ export function TranslationPicker({
       ...next.filter((id) => !selected.includes(id)),
     ];
     const t = translationParam(ordered, defaultId);
-    startTransition(() => router.push(t ? `${path}?t=${t}` : path, { scroll: false }));
+    const query = [t && `t=${t}`, keep].filter(Boolean).join("&");
+    startTransition(() => router.push(query ? `${path}?${query}` : path, { scroll: false }));
   }
 
   return (

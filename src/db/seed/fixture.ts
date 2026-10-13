@@ -1,5 +1,6 @@
 import type { Db } from "../client";
 import { bibleFixtureStep } from "./bible";
+import { studyFixtureStep } from "./study";
 
 export type SeedStep = {
   name: string;
@@ -9,7 +10,7 @@ export type SeedStep = {
 
 // The fixture the Playwright journeys run against. Append steps here in the
 // order they must run.
-export const fixtureSteps: SeedStep[] = [bibleFixtureStep];
+export const fixtureSteps: SeedStep[] = [bibleFixtureStep, studyFixtureStep];
 
 export async function seedFixture(
   db: Db,

@@ -61,3 +61,57 @@ export const verse = pgTable(
     index("verse_search_idx").using("gin", table.search),
   ],
 );
+
+// Where commentary comes from. "study_notes" are a study Bible's notes, shown
+// under their own heading.
+export const commentaryKind = pgEnum("commentary_kind", ["commentary", "study_notes"]);
+
+// One row per commentary or set of study notes; every `commentary_entry`
+// carries its license and attribution through it.
+export const commentarySource = pgTable("commentary_source", {
+  // Lowercase slug, e.g. "matthew-henry".
+  id: text().primaryKey(),
+  name: text().notNull(),
+  kind: commentaryKind().notNull(),
+  license: text().notNull(),
+  // Shown wherever the text appears.
+  attribution: text().notNull(),
+  sourceUrl: text("source_url").notNull(),
+  // Display order.
+  position: integer().notNull().default(0),
+});
+
+// What a source says about an inclusive range of verse ids: a verse, a
+// section, a whole chapter (its introduction) or a whole book. One row per
+// source and range.
+export const commentaryEntry = pgTable(
+  "commentary_entry",
+  {
+    sourceId: text("source_id")
+      .notNull()
+      .references(() => commentarySource.id, { onDelete: "cascade" }),
+    verseStart: integer("verse_start").notNull(),
+    verseEnd: integer("verse_end").notNull(),
+    // Sanitized at import to the tags of src/lib/study/html.ts, and passed
+    // through renderStudyHtml() again before it is printed.
+    html: text().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sourceId, table.verseStart, table.verseEnd] }),
+    index("commentary_entry_verse_start_idx").on(table.verseStart),
+  ],
+);
+
+// A cross reference from one verse to a verse or range, with the votes
+// OpenBible.info's readers gave it. Its license and attribution are
+// CROSS_REFERENCES in src/lib/study/sources.ts.
+export const crossRef = pgTable(
+  "cross_ref",
+  {
+    fromVerse: integer("from_verse").notNull(),
+    toStart: integer("to_start").notNull(),
+    toEnd: integer("to_end").notNull(),
+    votes: integer().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.fromVerse, table.toStart, table.toEnd] })],
+);
