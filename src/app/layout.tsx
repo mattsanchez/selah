@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Selah",
+  title: { default: "Selah", template: "%s · Selah" },
   description: "A self-hostable, open source lifestream for daily Bible reading.",
 };
 
