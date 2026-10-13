@@ -218,14 +218,18 @@ export const item = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     kind: itemKind().notNull(),
-    // The body of a reflection or a note.
+    // A reflection's optional title.
+    title: text(),
+    // The body of a reflection or a note. A reflection's passage cards are
+    // written in it; see src/lib/items/cards.ts.
     markdown: text(),
     // A highlight's optional one-line note.
     note: text(),
     // A highlight's color: an id from the palette in src/lib/items/palette.ts.
     color: text(),
     visibility: itemVisibility().notNull().default("private"),
-    // When it entered the feed; null while it never has.
+    // When it was published or shared; null while it is private. Written
+    // with `visibility`, by setVisibility in src/lib/items/queries.ts.
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -234,6 +238,12 @@ export const item = pgTable(
     // The owner's items of one kind, newest first: "My highlights".
     index("item_owner_kind_created_idx").on(table.ownerId, table.kind, table.createdAt.desc()),
     check("item_highlight_has_color", sql`${table.kind} <> 'highlight' or ${table.color} is not null`),
+    // A draft is private, and what is not private has the date it was
+    // published: the public site can trust either column.
+    check(
+      "item_published_unless_private",
+      sql`(${table.visibility} = 'private') = (${table.publishedAt} is null)`,
+    ),
   ],
 );
 
@@ -263,5 +273,40 @@ export const itemPassage = pgTable(
       "gist",
       sql`int4range(${table.verseStart}, ${table.verseEnd}, '[]')`,
     ),
+  ],
+);
+
+// The owner's tags. `slug` is what makes two spellings the same tag and what
+// a URL carries; `name` is the tag as it was first typed. See
+// src/lib/items/tags.ts.
+export const tag = pgTable(
+  "tag",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    slug: text().notNull(),
+    name: text().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("tag_owner_slug_idx").on(table.ownerId, table.slug)],
+);
+
+// The tags on an item, of any kind.
+export const itemTag = pgTable(
+  "item_tag",
+  {
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => item.id, { onDelete: "cascade" }),
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tag.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.itemId, table.tagId] }),
+    // The items with a tag.
+    index("item_tag_tag_idx").on(table.tagId),
   ],
 );
