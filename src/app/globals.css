@@ -43,4 +43,50 @@
   .passage-row > td {
     @apply px-3 py-3;
   }
+
+  /* Selectable verses (src/components/study/verse-select.tsx). */
+  .passage-verse-link {
+    @apply rounded-sm text-inherit no-underline hover:text-sky-700 hover:underline focus-visible:outline-2 focus-visible:outline-sky-600 aria-[current]:text-sky-700 dark:hover:text-sky-400 dark:aria-[current]:text-sky-400;
+  }
+  .verse-select [data-verse-id],
+  .verse-select [data-verse-row] {
+    @apply cursor-pointer;
+  }
+  .verse-select [data-verse-id]:hover,
+  .verse-select [data-verse-row]:hover [data-verse-id] {
+    @apply bg-stone-100 dark:bg-stone-800/60;
+  }
+  .verse-select [data-verse-id][data-selected],
+  .verse-select [data-verse-row][data-selected] [data-verse-id] {
+    @apply bg-amber-100 dark:bg-amber-900/40;
+  }
+
+  /* Commentary and study notes (src/lib/study/html.ts lists the tags). */
+  .study-html {
+    @apply font-serif text-[0.95rem] leading-7 text-stone-800 dark:text-stone-200;
+  }
+  .study-html p {
+    @apply my-2 first:mt-0 last:mb-0;
+  }
+  .study-html h4 {
+    @apply mt-3 mb-1 font-sans text-xs font-semibold tracking-wide text-stone-600 uppercase first:mt-0 dark:text-stone-400;
+  }
+  .study-html a {
+    @apply text-sky-700 underline decoration-sky-300 underline-offset-2 hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-800;
+  }
+  .study-html sup {
+    @apply font-sans text-[0.7em] text-stone-500 dark:text-stone-400;
+  }
+  .study-html .sc {
+    font-variant-caps: all-small-caps;
+  }
+  .study-html .excerpt {
+    @apply font-semibold italic;
+  }
+  .study-html .ref {
+    @apply font-sans text-[0.85em] font-semibold;
+  }
+  .study-html .ref a {
+    @apply text-inherit no-underline;
+  }
 }

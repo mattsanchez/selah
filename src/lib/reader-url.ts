@@ -8,6 +8,8 @@ import type { VerseRange } from "@/lib/bible/verse-id";
 //   /read/john-3.16              a passage in the default translation
 //   /read/john-3.16?t=web        ... in another translation
 //   /read/john-3.16?t=bsb,web    ... in two to four, side by side
+//   /read/john-3?v=john-3.16     ... with a verse selected: the study panel
+//   ...&full=matthew-henry       ... and one source's entries printed in full
 //
 // The path segment is referenceSlug(); anything parseReference() reads works
 // in its place and redirects to the canonical slug.
@@ -43,8 +45,26 @@ export function translationParam(
   return selected.join(",");
 }
 
-export function readerPath(ranges: readonly VerseRange[], t?: string): string {
-  // "," and ";" are legal in a path segment and read better left as they are.
+// What a reader URL carries besides the passage and its translations.
+export type ReaderState = {
+  // The selected verses (see src/lib/verse-selection.ts).
+  v?: readonly VerseRange[];
+  // The commentary source the study panel prints in full.
+  full?: string;
+};
+
+export function readerPath(
+  ranges: readonly VerseRange[],
+  t?: string,
+  { v = [], full }: ReaderState = {},
+): string {
+  // "," and ";" are legal in a path segment and in a query, and read better
+  // left as they are.
+  const query = [
+    t && `t=${t}`,
+    v.length > 0 && `v=${referenceSlug(v)}`,
+    v.length > 0 && full && `full=${encodeURIComponent(full)}`,
+  ].filter(Boolean);
   const path = `/read/${referenceSlug(ranges)}`;
-  return t ? `${path}?t=${t}` : path;
+  return query.length > 0 ? `${path}?${query.join("&")}` : path;
 }

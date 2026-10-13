@@ -127,3 +127,45 @@ describe("ParallelPassage", () => {
     expect(cells[0]).not.toContain("data-line");
   });
 });
+
+describe("selectable verses", () => {
+  const select = {
+    verseHref: (verseId: number) => `/read/john-3.16-17?v=${verseId}`,
+    isSelected: (verseId: number) => verseId === 43003016,
+  };
+
+  it("links each verse number and marks the selected verse", async () => {
+    const ranges = [await fixture("bsb", 43003016, 43003017)];
+    const html = renderToStaticMarkup(
+      <Passage translation={translation("bsb")} ranges={ranges} {...select} />,
+    );
+    expect(html).toContain(
+      '<a href="/read/john-3.16-17?v=43003016" data-verse-link="43003016" aria-label="Study John 3:16" aria-current="true"',
+    );
+    expect(html).toContain(
+      '<a href="/read/john-3.16-17?v=43003017" data-verse-link="43003017" aria-label="Study John 3:17" class',
+    );
+    expect(count(html, "data-selected")).toBe(count(html, 'data-verse-id="43003016"'));
+
+    // Without them the markup is what it was.
+    const plain = renderToStaticMarkup(<Passage translation={translation("bsb")} ranges={ranges} />);
+    expect(plain).not.toContain("data-verse-link");
+    expect(plain).not.toContain("data-selected");
+  });
+
+  it("does the same for the rows of the parallel view", async () => {
+    const html = renderToStaticMarkup(
+      <ParallelPassage
+        caption="John 3:16-17"
+        columns={[
+          { translation: translation("bsb"), ranges: [await fixture("bsb", 43003016, 43003017)] },
+          { translation: translation("web"), ranges: [await fixture("web", 43003016, 43003017)] },
+        ]}
+        {...select}
+      />,
+    );
+    expect(html).toContain('<tr data-verse-row="43003016" data-selected="" class="passage-row">');
+    expect(html).toContain('<tr data-verse-row="43003017" class="passage-row">');
+    expect(count(html, "data-verse-link")).toBe(2);
+  });
+});

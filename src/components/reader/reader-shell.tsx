@@ -7,13 +7,15 @@ type ReaderShellProps = {
   form: Parameters<typeof ReferenceForm>[0];
   // The parallel view needs more room than a column of prose.
   wide?: boolean;
+  // The study panel, when a verse is selected. The page keeps clear of it.
+  panel?: ReactNode;
   children?: ReactNode;
 };
 
 // The frame the reader and the search page share: the site name and the one
 // box for references and searches.
-export function ReaderShell({ form, wide = false, children }: ReaderShellProps) {
-  return (
+export function ReaderShell({ form, wide = false, panel, children }: ReaderShellProps) {
+  const main = (
     <main className={`mx-auto px-6 py-8 ${wide ? "max-w-6xl" : "max-w-2xl"}`}>
       <div className="mx-auto max-w-2xl">
         <Link
@@ -28,5 +30,13 @@ export function ReaderShell({ form, wide = false, children }: ReaderShellProps) 
       </div>
       {children}
     </main>
+  );
+  if (!panel) return main;
+  return (
+    <>
+      {/* Room for the panel: a column on the right, or a sheet at the bottom. */}
+      <div className="pb-[55vh] lg:pr-[26rem] lg:pb-0">{main}</div>
+      {panel}
+    </>
   );
 }

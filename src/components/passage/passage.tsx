@@ -10,7 +10,7 @@ import {
 } from "@/lib/bible/layout";
 import type { Translation } from "@/lib/bible/passage";
 import type { VerseRecord } from "@/lib/bible/types";
-import { parseVerseId } from "@/lib/bible/verse-id";
+import { formatVerseId, parseVerseId } from "@/lib/bible/verse-id";
 
 // Renders Bible text: <Passage> for one translation, <ParallelPassage> for
 // several side by side. Both are plain server-renderable components with no
@@ -21,6 +21,41 @@ import { parseVerseId } from "@/lib/bible/verse-id";
 // Every verse's text is wrapped in an element carrying `data-verse-id`, the
 // canonical id; a verse split across paragraphs or lines of poetry has one
 // such element in each. The `passage-*` classes are in src/app/globals.css.
+//
+// Verses can be made selectable without giving the components any state:
+// with `verseHref`, each verse number is a link to the same passage with that
+// verse selected, and the verses of `selected` are marked `data-selected`.
+// The reader wraps the passage in <VerseSelect>, which turns a click anywhere
+// in a verse into the same navigation.
+
+// What makes verses selectable; both components take it.
+export type VerseSelection = {
+  // Where selecting a verse goes.
+  verseHref?: (verseId: number) => string;
+  // Whether a verse is selected.
+  isSelected?: (verseId: number) => boolean;
+};
+
+// A verse number, as a link when verses are selectable.
+function VerseNumber({
+  verseId,
+  number,
+  verseHref,
+  isSelected,
+}: { verseId: number; number: number } & VerseSelection) {
+  if (!verseHref) return number;
+  return (
+    <a
+      href={verseHref(verseId)}
+      data-verse-link={verseId}
+      aria-label={`Study ${formatVerseId(verseId)}`}
+      aria-current={isSelected?.(verseId) ? "true" : undefined}
+      className="passage-verse-link"
+    >
+      {number}
+    </a>
+  );
+}
 
 // `idPrefix` keeps footnote anchors unique when a page shows several passages.
 const noteId = (idPrefix: string, note: Note) => `${idPrefix}-note-${note.index}`;
@@ -53,11 +88,13 @@ function Blocks({
   blocks,
   idPrefix,
   verseNumbers = true,
+  verseHref,
+  isSelected,
 }: {
   blocks: Block[];
   idPrefix: string;
   verseNumbers?: boolean;
-}) {
+} & VerseSelection) {
   return blocks.map((block, i) => {
     switch (block.type) {
       case "gap":
@@ -104,10 +141,19 @@ function Blocks({
                 part.join === "inline" ? (
                   <Fragment key={k}> </Fragment>
                 ) : (
-                  <span key={k} data-verse-id={part.verseId}>
+                  <span
+                    key={k}
+                    data-verse-id={part.verseId}
+                    data-selected={isSelected?.(part.verseId) ? "" : undefined}
+                  >
                     {verseNumbers && part.number !== undefined && (
                       <sup data-verse-number className="passage-verse-number">
-                        {part.number}
+                        <VerseNumber
+                          verseId={part.verseId}
+                          number={part.number}
+                          verseHref={verseHref}
+                          isSelected={isSelected}
+                        />
                       </sup>
                     )}
                     <Inlines inlines={part.inlines} idPrefix={idPrefix} />
@@ -196,7 +242,7 @@ export function Attribution({ translation }: { translation: Translation }) {
   );
 }
 
-type PassageProps = {
+type PassageProps = VerseSelection & {
   translation: Translation;
   // The verses of each range of the passage, as getPassages() returns them.
   ranges: readonly (readonly VerseRecord[])[];
@@ -206,12 +252,23 @@ type PassageProps = {
 
 // A passage in one translation. Renders nothing but the attribution when the
 // translation has none of the verses; callers say so in their own words.
-export function Passage({ translation, ranges, idPrefix = translation.id }: PassageProps) {
+export function Passage({
+  translation,
+  ranges,
+  idPrefix = translation.id,
+  verseHref,
+  isSelected,
+}: PassageProps) {
   const { blocks, notes } = layoutPassage(ranges);
   return (
     <div data-passage={translation.id} className="space-y-6">
       <div className="passage-text">
-        <Blocks blocks={blocks} idPrefix={idPrefix} />
+        <Blocks
+          blocks={blocks}
+          idPrefix={idPrefix}
+          verseHref={verseHref}
+          isSelected={isSelected}
+        />
       </div>
       <Notes notes={notes} idPrefix={idPrefix} />
       <Attribution translation={translation} />
@@ -219,7 +276,7 @@ export function Passage({ translation, ranges, idPrefix = translation.id }: Pass
   );
 }
 
-type ParallelPassageProps = {
+type ParallelPassageProps = VerseSelection & {
   // Two or more translations with the same ranges, in column order.
   columns: readonly {
     translation: Translation;
@@ -233,7 +290,13 @@ type ParallelPassageProps = {
 // The same passage in several translations, one column each, with every verse
 // on its own row so the translations stay aligned. A translation that lacks a
 // verse has an empty cell saying so.
-export function ParallelPassage({ columns, caption, idPrefix = "p" }: ParallelPassageProps) {
+export function ParallelPassage({
+  columns,
+  caption,
+  idPrefix = "p",
+  verseHref,
+  isSelected,
+}: ParallelPassageProps) {
   const { rows, notes } = layoutParallel(columns.map((column) => column.ranges));
   const prefix = (t: number) => `${idPrefix}-${columns[t].translation.id}`;
 
@@ -272,8 +335,20 @@ export function ParallelPassage({ columns, caption, idPrefix = "p" }: ParallelPa
           <tbody>
             {rows.map((row, i) =>
               row.type === "verse" ? (
-                <tr key={i} data-verse-row={row.verseId} className="passage-row">
-                  <th scope="row">{row.number}</th>
+                <tr
+                  key={i}
+                  data-verse-row={row.verseId}
+                  data-selected={isSelected?.(row.verseId) ? "" : undefined}
+                  className="passage-row"
+                >
+                  <th scope="row">
+                    <VerseNumber
+                      verseId={row.verseId}
+                      number={row.number}
+                      verseHref={verseHref}
+                      isSelected={isSelected}
+                    />
+                  </th>
                   {row.cells.map((blocks, t) => (
                     <td
                       key={columns[t].translation.id}

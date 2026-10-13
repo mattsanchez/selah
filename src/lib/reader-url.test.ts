@@ -68,4 +68,19 @@ describe("readerPath", () => {
     expect(readerPath(ranges("Ps 23"), "bsb,web")).toBe("/read/psalm-23?t=bsb,web");
     expect(readerPath(ranges("Ps 23"), undefined)).toBe("/read/psalm-23");
   });
+
+  it("carries the selected verses, and the source printed in full with them", () => {
+    const v = ranges("John 3:16");
+    expect(readerPath(ranges("John 3"), undefined, { v })).toBe("/read/john-3?v=john-3.16");
+    expect(readerPath(ranges("John 3"), "bsb,web", { v })).toBe(
+      "/read/john-3?t=bsb,web&v=john-3.16",
+    );
+    expect(readerPath(ranges("John 3"), undefined, { v, full: "matthew-henry" })).toBe(
+      "/read/john-3?v=john-3.16&full=matthew-henry",
+    );
+    // Nothing is printed in full without a verse to study.
+    expect(readerPath(ranges("John 3"), undefined, { v: [], full: "matthew-henry" })).toBe(
+      "/read/john-3",
+    );
+  });
 });
