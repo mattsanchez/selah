@@ -10,7 +10,8 @@ type ReaderShellProps = {
   children?: ReactNode;
 };
 
-// The frame every reader page shares: the site name and the reference box.
+// The frame the reader and the search page share: the site name and the one
+// box for references and searches.
 export function ReaderShell({ form, wide = false, children }: ReaderShellProps) {
   return (
     <main className={`mx-auto px-6 py-8 ${wide ? "max-w-6xl" : "max-w-2xl"}`}>

@@ -63,7 +63,7 @@ Verses are keyed by a canonical id, `BBCCCVVV` (John 3:16 is `43003016`), shared
 
 ## Reader
 
-`/read` is the reader: type a reference (`John 3:16-21`, `jn3.16`, `Ps 23`, `John 3:16-18, 22; 4:1-3`) and read the passage with verse numbers, headings, footnotes, paragraphs and red-letter text.
+`/read` is the reader: type a reference in the box (`John 3:16-21`, `jn3.16`, `Ps 23`, `John 3:16-18, 22; 4:1-3`) and read the passage with verse numbers, headings, footnotes, paragraphs and red-letter text.
 Every passage has its own URL, and the `t` parameter picks the translations: one for the plain reader, two to four for the parallel view, where each verse is a row so the translations stay aligned.
 
 | URL | Shows |
@@ -79,6 +79,31 @@ The pieces, for anyone building on them:
 - `src/lib/bible/layout.ts`: turns stored verses into blocks of text with footnote markers and red-letter spans in place.
 - `src/components/passage/passage.tsx`: `<Passage>` and `<ParallelPassage>` render those blocks with the translation's attribution.
 - `src/lib/site.ts`: where the default translation is chosen.
+
+## Search
+
+One box serves the reader and the search page. A reference typed in it opens the passage; anything else searches the text of every translation stored locally, with Postgres full-text search (English stemming, so `believing` finds "believes").
+
+| URL | Shows |
+| :--- | :--- |
+| `/search?q=living+water` | Verses with both words, in the default translation, best match first |
+| `/search?q=living+water&t=all` | ... in every local translation (`t=bsb,kjv` for some) |
+| `/search?q=shepherd&in=john` | ... in one book (`in=ot` or `in=nt` for a testament) |
+| `/search?q=love&page=2` | The second page; 20 results a page |
+| `/search?q=jn+4.10`, `/search?q=Romans` | Redirect to the reader |
+
+All the words must be in the verse. `"quoted words"` must be together, `-word` leaves a word out, and `or` between words finds either.
+Section headings and psalm titles are searched with the verse they are printed over, so `maskil` finds the psalms titled that way.
+A word typed alone goes to the reader only when it is a book's full name (`John`, `Psalms`); abbreviations such as `is` or `judge` are searched for, with a link to the book, and a quoted `"john"` always is.
+
+The pieces:
+
+- `src/db/schema.ts`: `verse.search`, a generated `tsvector` column with a GIN index (migration `0003_verse_search`).
+- `src/lib/bible/search.ts`: `searchVerses(db, request)`, the one function that retrieves and ranks. It returns hits with their text cut into matched and unmatched segments.
+- `src/lib/search-url.ts`: the URL parameters, and `interpretQuery()`, which tells a reference from words to search for.
+- `src/app/search/page.tsx` and `src/components/search/`: the page, its filters and the result list.
+
+Limits: words too common to index ("the", "of") are ignored, and inside a quoted phrase such a word stands for any one word. Stemming is modern English, so in the KJV `love` does not find "loveth".
 
 ## License
 

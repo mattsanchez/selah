@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { ReaderShell } from "@/components/reader/reader-shell";
 import { parseReference } from "@/lib/bible/reference";
 import { readerPath } from "@/lib/reader-url";
+import { interpretQuery, searchPath } from "@/lib/search-url";
 
 export const metadata: Metadata = { title: "Read" };
 
@@ -13,25 +14,27 @@ const first = (value: string | string[] | undefined) =>
 
 const EXAMPLES = ["John 3:16-21", "Psalm 23", "Romans 8:28-39"];
 
-// The reference box on its own, and where it submits: /read?q=jn3.16
-// redirects to the passage's own URL, or shows why the reference was not
-// understood. It resolves references only; searching the text is a later
-// milestone.
+// The box on its own. It submits to /search, but /read?q=jn3.16 still works:
+// it redirects to the passage's own URL, or shows why the reference was not
+// understood. Words that are not a reference go on to the search page.
 export default async function ReadPage({ searchParams }: PageProps<"/read">) {
   const params = await searchParams;
   const q = first(params.q)?.trim();
   // Checked against the loaded translations by the passage page.
   const t = first(params.t)?.match(/^[a-z0-9_,-]+$/i)?.[0];
 
-  const parsed = q ? parseReference(q) : undefined;
-  if (parsed?.ok) redirect(readerPath(parsed.ranges, t));
+  const intent = interpretQuery(q ?? "");
+  if (intent.kind === "reference") redirect(readerPath(intent.ranges, t));
+  if (intent.kind === "keyword") redirect(searchPath({ q: q!, t }));
 
   return (
-    <ReaderShell form={{ value: q, t, error: parsed?.error.message }}>
+    <ReaderShell
+      form={{ value: q, t, error: intent.kind === "bad-reference" ? intent.message : undefined }}
+    >
       <div className="mx-auto mt-10 max-w-2xl">
         <h1 className="font-serif text-3xl tracking-tight">Read the Bible</h1>
         <p className="mt-3 text-stone-600 dark:text-stone-400">
-          Type a reference above, or start with one of these:
+          Type a reference above, or words to search for. Or start with one of these:
         </p>
         <ul className="mt-3 flex flex-wrap gap-2">
           {EXAMPLES.map((example) => {

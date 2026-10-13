@@ -13,6 +13,12 @@ export default function HomePage() {
         <Button asChild>
           <Link href="/read">Read the Bible</Link>
         </Button>
+        <Link
+          href="/search"
+          className="text-sm text-stone-600 underline underline-offset-4 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
+        >
+          Search the Bible
+        </Link>
         <a
           href="https://github.com/mattsanchez/selah"
           className="text-sm text-stone-600 underline underline-offset-4 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"

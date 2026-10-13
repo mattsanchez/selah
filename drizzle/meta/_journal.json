@@ -22,6 +22,13 @@
       "when": 1791860930107,
       "tag": "0002_verse_breaks_words_of_jesus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791863306174,
+      "tag": "0003_verse_search",
+      "breakpoints": true
     }
   ]
 }
