@@ -11,6 +11,9 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
+# Downloaded Bible sources (`pnpm import:bible`); never committed
+.cache/
+
 # Local configuration; .env.example is the template
 .env
 .env.*

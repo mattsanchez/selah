@@ -8,6 +8,20 @@
       "when": 1791840675609,
       "tag": "0000_enable_pgvector",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791843273695,
+      "tag": "0001_translation_verse",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791860930107,
+      "tag": "0002_verse_breaks_words_of_jesus",
+      "breakpoints": true
     }
   ]
 }

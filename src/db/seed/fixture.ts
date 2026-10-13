@@ -1,4 +1,5 @@
 import type { Db } from "../client";
+import { bibleFixtureStep } from "./bible";
 
 export type SeedStep = {
   name: string;
@@ -6,10 +7,9 @@ export type SeedStep = {
   run: (db: Db) => Promise<void>;
 };
 
-// The fixture the Playwright journeys run against. Empty until milestone 2
-// adds the Bible fixture (John, Psalms, Romans); append steps here in the
+// The fixture the Playwright journeys run against. Append steps here in the
 // order they must run.
-export const fixtureSteps: SeedStep[] = [];
+export const fixtureSteps: SeedStep[] = [bibleFixtureStep];
 
 export async function seedFixture(
   db: Db,
