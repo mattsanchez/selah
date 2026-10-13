@@ -210,6 +210,7 @@ To skip setup, seed the test owner as well: `SELAH_SEED_TEST_OWNER=1 pnpm db:see
 | `pnpm import:study` | Download and load the cross references, commentaries and study notes; see [Study data](#study-data) |
 | `pnpm fixture:study` | Rebuild the committed study fixture from the pinned sources |
 | `pnpm data:release` | Stage the [data release](#data-releases) from the download cache and verify it; with `--publish`, publish it |
+| `pnpm data:check` | Compare every pinned source with what its publisher serves today and print what changed; see [checking upstream for changes](#checking-upstream-for-changes) |
 | `pnpm e2e:serve` | Build and serve on 127.0.0.1:3000 against the seeded database with the AI provider stubbed |
 | `pnpm e2e` | Playwright tests; reuses a running `pnpm e2e:serve`, or starts one. It also seeds the test owner and starts a second server for journey 1; see [Owner account](#owner-account-and-settings) |
 
@@ -305,11 +306,67 @@ It needs the [`gh` CLI](https://cli.github.com/) signed in with write access to 
 The license notices are written in `src/lib/data-release/catalog.ts`; a source with no notice there cannot be released.
 Only public-domain or openly licensed files may be mirrored. A file whose terms do not allow it is marked `upstreamOnly` on its source, and is then left out of the release and downloaded from its publisher only.
 
+### Checking upstream for changes
+
+The publishers change their files without notice, and nothing fails when they do, because installs load the pinned copies from the mirror.
+So a scheduled job looks for changes, and files what it finds as issues to plan like any other work.
+
+Every Monday the `Upstream check` workflow (`.github/workflows/upstream-check.yml`) runs `pnpm data:check --file-issues`.
+For each file in the catalog (`pinnedFiles()` in `src/lib/data-release/catalog.ts`, the same list the data release is built from) it downloads the publisher's copy and the pinned copy from the data release, reads both with the import's own readers, and compares the verses, entries or cross references the import would load from each.
+It only reads: it never changes a pin, the fixture, the download cache or the mirror.
+
+Each source gets one or more of these classifications:
+
+| Classification | What it means | Significant when |
+| :--- | :--- | :--- |
+| Rebuild | The publisher's file has other bytes, and the import reads the same content from it: a new build date, changed metadata, spacing, or markup the import sets aside. | Never |
+| Wording | The words of a verse changed. The issue says how many verses, with examples. | Any verse |
+| Verses added, removed or renumbered | A verse is new, gone, or has the same words under another number. | Any verse |
+| Formatting | A verse has the same words and other paragraph or line breaks, red-letter spans, headings or footnotes. | More than 5 verses |
+| Entries | Commentary entries or study notes were added, removed, moved to other verses or reworded, or their markup changed. | Any entry |
+| Cross references | References were added or removed, or their votes changed. OpenBible.info rebuilds its file daily, so some of this happens every week. | More than 1% of the pinned references added or removed, or more than 1% voted across zero, where the study panel stops showing a reference |
+| License or attribution | What the file says about its own terms changed: the license fields of a translation's JSON, `copr.htm` in the WEB's archive, the header line of the cross references, the license lines of a SWORD module's `.conf`, the study notes' `_README.txt`. | Any change |
+| Unreachable | The publisher did not serve the file, or served something that is not it. | Once it has lasted six days (see below) |
+| Moved | The pinned address redirects to another host or path. | Once it has lasted six days |
+| Divergence | For a translation read from two sources (the BSB and the WEB: the text from the Free Use Bible API, the formatting from the publisher's USFM), the verses on which the two disagree, with today's files against the pinned ones, and the verses whose formatting the import could not place because of it. Reported when either file changed. | Any verse on which they newly disagree |
+| Unreadable, unclassified | The file changed and the import's reader fails on the new one, or there was no pinned copy to compare it with. | Always |
+
+The thresholds are in one file, `src/lib/data-release/upstream-check/config.ts`, with the label and the number of examples an issue gives.
+A source with nothing significant files nothing; the run's log and summary still say what was found.
+
+**Issues.** A significant change files one issue per source, labeled `upstream-refresh` (the label is created when missing), with the findings and a recommendation:
+
+- **refresh**: the changes are of the kind a refresh takes in.
+- **wait**: the source has moved away from the same translation's other source, so more of its formatting would go unplaced; refresh when the other has caught up, or both together.
+- **investigate**: the license changed, verses were renumbered, the source is unreachable or has moved, or the import cannot read the new file.
+
+The issue for a source is found again by a marker in its body (`<!-- selah-upstream-check {"source": ...} -->`) together with the label, not by its title, so it can be retitled.
+While it is open, later runs edit its description in place, and add a comment only when the classifications or the recommendation change.
+It is closed by the check when the source matches its pin again, which is what happens after a refresh is merged.
+If you close it yourself without refreshing, it is not filed again until the publisher's file changes again; to put a refresh off without hearing more, leave it open.
+
+**Unreachable sources.** One failed download files nothing. Each run records since when a source has been unreachable (or moved) and hands that to the next run as a workflow artifact, `upstream-check-state`; a source is reported once that is six days or more, which with the weekly schedule is the second Monday in a row. A run that reaches the source starts the count over. Within one run a download is tried three times.
+
+**By hand.**
+
+```sh
+pnpm data:check                 # every source; prints the findings and any issue it would file
+pnpm data:check bsb tyndale     # only the sources named
+pnpm data:check --file-issues   # also file, update and close the issues, with the gh CLI
+```
+
+Without `--file-issues` it is a dry run: it downloads about 60 MB, reads the existing issues if `gh` is signed in, and changes nothing.
+The workflow can also be started from the Actions tab (`Run workflow`), with a dry-run option, and runs as a dry run on any pull request that changes the check.
+
+**Acting on an issue.** Read the findings, then follow [refreshing a source](#refreshing-a-source) and close the issue from that pull request. For *wait*, leave the issue open: it is brought up to date every week. For *investigate*, settle the question the issue names first (the new license, the new address, the renumbered verses), which may end in a refresh, a code change or closing the issue.
+
+Limits: the license check reads only what is inside a file, not the publisher's web page, and the BSB's USFM archive carries no license statement at all; a verse whose words changed is counted once, under wording, whatever else changed in it; and examples are a few per finding, so the full list of changed verses comes from running the import on the new file.
+
 ### Refreshing a source
 
 When a publisher changes a file, installs keep working from the mirror, so a refresh is never urgent and never automatic. It is one reviewed pull request:
 
-1. Download the new file and review what changed (wording, verse numbering, formatting, license).
+1. Download the new file and review what changed (wording, verse numbering, formatting, license). The [upstream check](#checking-upstream-for-changes)'s issue for the source, or `pnpm data:check <source id>`, says what to look for.
 2. Update its pin in `src/lib/bible/import/sources.ts` or `src/lib/study/sources.ts`, and check its entry in `DATA-LICENSES.md` and its notice in `src/lib/data-release/catalog.ts`.
 3. Rebuild the fixture: `pnpm fixture:bible` or `pnpm fixture:study`.
 4. Name a new data release in `DATA_RELEASE` (`data-v2` after `data-v1`).
