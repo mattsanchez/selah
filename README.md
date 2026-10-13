@@ -6,7 +6,7 @@ Look up or search a passage, compare translations, study it with cross reference
 Inspired by Posterous, shaped like Ghost, built for Bible study.
 
 Status: pre-MVP. The product spec and milestones are in [docs/spec.md](docs/spec.md).
-You can already [run your own copy](#self-hosting): it has the Bible reader and the owner account; highlights, the feed and AI come next.
+You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account and verse highlights; the feed and AI come next.
 
 ## Self-hosting
 

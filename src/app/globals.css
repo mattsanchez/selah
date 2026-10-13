@@ -4,6 +4,29 @@
   --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
 
+/* The highlight palette: src/lib/items/palette.ts, as custom properties. */
+:root {
+  --hl-yellow: #fdf08a;
+  --hl-green: #c3f5d0;
+  --hl-blue: #cfe3fe;
+  --hl-pink: #fcd9ec;
+  --hl-purple: #eadcfd;
+  --hl-yellow-accent: #eab308;
+  --hl-green-accent: #22c55e;
+  --hl-blue-accent: #3b82f6;
+  --hl-pink-accent: #ec4899;
+  --hl-purple-accent: #a855f7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hl-yellow: #382c04;
+    --hl-green: #0c331d;
+    --hl-blue: #152b51;
+    --hl-pink: #521938;
+    --hl-purple: #3a2160;
+  }
+}
+
 /* Bible text (src/components/passage). These repeat for every verse of a
    passage, so they are named classes rather than utility lists: a whole book
    is several thousand verses. */
@@ -52,13 +75,95 @@
   .verse-select [data-verse-row] {
     @apply cursor-pointer;
   }
-  .verse-select [data-verse-id]:hover,
-  .verse-select [data-verse-row]:hover [data-verse-id] {
+  .verse-select [data-verse-id]:not([data-highlight]):hover,
+  .verse-select [data-verse-row]:not([data-highlight]):hover [data-verse-id] {
     @apply bg-stone-100 dark:bg-stone-800/60;
   }
+  /* Selected verses are underlined, and grey unless highlighted: selection
+     is never a color, so it cannot be taken for a highlight, and a verse can
+     show both. */
   .verse-select [data-verse-id][data-selected],
   .verse-select [data-verse-row][data-selected] [data-verse-id] {
-    @apply bg-amber-100 dark:bg-amber-900/40;
+    @apply underline decoration-stone-700 decoration-2 underline-offset-4 dark:decoration-stone-300;
+  }
+  .verse-select [data-verse-id][data-selected]:not([data-highlight]),
+  .verse-select [data-verse-row][data-selected]:not([data-highlight]) [data-verse-id] {
+    @apply bg-stone-200 dark:bg-stone-700/70;
+  }
+  .verse-select [data-verse-row][data-selected] > th {
+    @apply shadow-[inset_3px_0_0_var(--color-stone-700)] dark:shadow-[inset_3px_0_0_var(--color-stone-300)];
+  }
+
+  /* Highlights. An element with data-highlight="yellow" carries that color
+     as --hl (the background of highlighted text) and --hl-accent (a swatch,
+     the edge of a card); what uses them is below. The colors are the palette
+     of src/lib/items/palette.ts, which a test keeps in step with :root. */
+  [data-highlight="yellow"] {
+    --hl: var(--hl-yellow);
+    --hl-accent: var(--hl-yellow-accent);
+  }
+  [data-highlight="green"] {
+    --hl: var(--hl-green);
+    --hl-accent: var(--hl-green-accent);
+  }
+  [data-highlight="blue"] {
+    --hl: var(--hl-blue);
+    --hl-accent: var(--hl-blue-accent);
+  }
+  [data-highlight="pink"] {
+    --hl: var(--hl-pink);
+    --hl-accent: var(--hl-pink-accent);
+  }
+  [data-highlight="purple"] {
+    --hl: var(--hl-purple);
+    --hl-accent: var(--hl-purple-accent);
+  }
+  [data-highlight-under="yellow"] {
+    --hl-under: var(--hl-yellow-accent);
+  }
+  [data-highlight-under="green"] {
+    --hl-under: var(--hl-green-accent);
+  }
+  [data-highlight-under="blue"] {
+    --hl-under: var(--hl-blue-accent);
+  }
+  [data-highlight-under="pink"] {
+    --hl-under: var(--hl-pink-accent);
+  }
+  [data-highlight-under="purple"] {
+    --hl-under: var(--hl-purple-accent);
+  }
+  /* A highlighted verse: in the reader its pieces, in the parallel view every
+     cell of its row, the cell of a translation without the verse included. */
+  .passage-text [data-verse-id][data-highlight],
+  .passage-row[data-highlight] :is([data-verse-id], [data-missing-verse]),
+  .highlight-text {
+    background-color: var(--hl);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  /* Where highlights overlap, the one underneath shows as a stripe. */
+  .passage-text [data-verse-id][data-highlight-under],
+  .passage-row[data-highlight-under] :is([data-verse-id], [data-missing-verse]) {
+    box-shadow: inset 0 -0.2em 0 var(--hl-under);
+  }
+  /* The link to a highlight's note, after its last verse. */
+  .passage-highlight-note {
+    @apply ml-1 inline-flex rounded-sm align-baseline text-stone-600 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-stone-300 dark:hover:text-stone-100;
+  }
+  .highlight-swatch {
+    @apply inline-block size-3.5 shrink-0 rounded-full border-2;
+    background-color: var(--hl, transparent);
+    border-color: var(--hl-accent, currentColor);
+  }
+  /* A highlight as a card: the color is its left edge. */
+  .highlight-card {
+    @apply rounded-r-md border-l-4 bg-white py-3 pr-3 pl-4 font-sans dark:bg-stone-900;
+    border-left-color: var(--hl-accent, var(--color-stone-300));
+  }
+  /* One color of the palette in a form. */
+  .highlight-choice {
+    @apply inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-stone-300 bg-white pr-3 pl-2 text-sm select-none hover:bg-stone-50 has-[:checked]:border-stone-900 has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-stone-900)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:hover:bg-stone-800 dark:has-[:checked]:border-stone-100 dark:has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-stone-100)];
   }
 
   /* Commentary and study notes (src/lib/study/html.ts lists the tags). */

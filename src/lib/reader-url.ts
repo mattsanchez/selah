@@ -9,6 +9,8 @@ import type { VerseRange } from "@/lib/bible/verse-id";
 //   /read/john-3.16?t=web        ... in another translation
 //   /read/john-3.16?t=bsb,web    ... in two to four, side by side
 //   /read/john-3?v=john-3.16     ... with a verse selected: the study panel
+//   /read/john-3?v=john-3.16-18,20   ... with several: a highlight is made of them
+//   ...&add=1                    ... while a click adds or removes a verse
 //   ...&full=matthew-henry       ... and one source's entries printed in full
 //
 // The path segment is referenceSlug(); anything parseReference() reads works
@@ -49,6 +51,9 @@ export function translationParam(
 export type ReaderState = {
   // The selected verses (see src/lib/verse-selection.ts).
   v?: readonly VerseRange[];
+  // A click on a verse adds it to the selection or removes it, rather than
+  // selecting it alone. Only with a selection.
+  add?: boolean;
   // The commentary source the study panel prints in full.
   full?: string;
 };
@@ -56,13 +61,14 @@ export type ReaderState = {
 export function readerPath(
   ranges: readonly VerseRange[],
   t?: string,
-  { v = [], full }: ReaderState = {},
+  { v = [], add, full }: ReaderState = {},
 ): string {
   // "," and ";" are legal in a path segment and in a query, and read better
   // left as they are.
   const query = [
     t && `t=${t}`,
     v.length > 0 && `v=${referenceSlug(v)}`,
+    v.length > 0 && add && "add=1",
     v.length > 0 && full && `full=${encodeURIComponent(full)}`,
   ].filter(Boolean);
   const path = `/read/${referenceSlug(ranges)}`;

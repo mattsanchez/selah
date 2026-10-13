@@ -6,7 +6,9 @@ import {
   chapterRange,
   formatVerseId,
   isVerseId,
+  nextVerseId,
   parseVerseId,
+  previousVerseId,
   toVerseId,
 } from "./verse-id";
 
@@ -105,5 +107,28 @@ describe("verse ids", () => {
     expect(bookRange(64)).toEqual({ start: 64_001_001, end: 64_001_015 });
     expect(() => chapterRange(43, 22)).toThrow(RangeError);
     expect(() => bookRange(67)).toThrow(RangeError);
+  });
+
+  it("steps to the next and the previous verse across chapters and books", () => {
+    expect(nextVerseId(43_003_016)).toBe(43_003_017);
+    expect(nextVerseId(43_003_036)).toBe(43_004_001);
+    expect(nextVerseId(43_021_025)).toBe(44_001_001);
+    expect(nextVerseId(66_022_021)).toBeUndefined();
+    expect(previousVerseId(43_003_017)).toBe(43_003_016);
+    expect(previousVerseId(43_004_001)).toBe(43_003_036);
+    expect(previousVerseId(44_001_001)).toBe(43_021_025);
+    expect(previousVerseId(1_001_001)).toBeUndefined();
+    expect(() => nextVerseId(43_003_099)).toThrow(RangeError);
+    expect(() => previousVerseId(0)).toThrow(RangeError);
+  });
+
+  it("walks every verse of a book forwards and back", () => {
+    const { start, end } = bookRange(43);
+    let count = 1;
+    for (let id = start; id !== end; id = nextVerseId(id)!) {
+      expect(previousVerseId(nextVerseId(id)!)).toBe(id);
+      count++;
+    }
+    expect(count).toBe(879);
   });
 });
