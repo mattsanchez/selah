@@ -58,27 +58,108 @@ describe("applyFormatting: words of Jesus", () => {
     expect(words(verses[0])).toEqual(["“Do you love Me?”", "“Feed My lambs,”\n“and follow.”"]);
   });
 
-  it("skips a verse whose words differ, however slightly, and reports it", () => {
-    // BSB John 6:42 and 13:38: the two sources punctuate the end differently.
+  it("sets aside a bracketed closing quotation mark at the end of the source's verse", () => {
+    // BSB John 13:38 and 14:31: the USFM closes the speech with a bracketed
+    // mark the stored text does not have.
     const stored = [
-      record(43_006_042, "How then can He say, ‘I have come down from heaven?’”"),
-      record(43_013_038, "“Truly, I tell you, you will deny Me three times."),
-      record(43_013_037, "Peter said, “Lord, why can’t I follow You now?”"),
+      record(
+        43_013_038,
+        "“Will you lay down your life for Me?” Jesus replied. “Truly, truly, I tell you, you will deny Me three times.",
+      ),
+      record(43_014_031, "that I love the Father.\nGet up! Let us go on from here.", {
+        breaks: [{ offset: 24, kind: "paragraph" }],
+      }),
     ];
     const books = [
-      ...john(6, "\\p \\v 42 How then can He say, \\wj ‘I have come down from heaven’?”\\wj*"),
       ...john(
         13,
-        "\\p \\v 37 Peter said, “Lord, why can’t I follow You now?”\n\\p \\v 38 \\wj “Truly, I tell you, you will deny Me three times.’’\\wj*",
+        "\\p \\v 38 \\wj “Will you lay down your life for Me?”\\wj* Jesus replied. \\wj “Truly, truly, I tell you, you will deny Me three times.[’’]\\wj*",
+      ),
+      ...john(
+        14,
+        "\\p \\v 31 \\wj that I love the Father.\\wj*\n\\p \\wj Get up! Let us go on from here.[’’]\\wj*",
       ),
     ];
+    const { verses, report } = applyFormatting(stored, books, options);
+
+    expect(words(verses[0])).toEqual([
+      "“Will you lay down your life for Me?”",
+      "“Truly, truly, I tell you, you will deny Me three times.",
+    ]);
+    expect(words(verses[1])).toEqual([stored[1].text]);
+    expect(verses.map((v) => v.text)).toEqual(stored.map((v) => v.text));
+    expect(verses[1].breaks).toEqual(stored[1].breaks);
+    expect(report).toMatchObject({ marked: 2, applied: 2, added: 3, skipped: [] });
+    expect(report.punctuationDiffers).toEqual([43_013_038, 43_014_031]);
+  });
+
+  it("marks a verse whose punctuation differs clear of where its spans start and end", () => {
+    // BSB Mark 12:29 and Luke 5:24: a comma, and "…" against "...".
+    const stored = [
+      record(41_012_029, "Jesus replied, “This is the most important: ‘Hear O Israel, the Lord is One."),
+      record(42_005_024, "to forgive sins...” He said to the paralytic, “I tell you, get up.”"),
+    ];
+    const books = [
+      parseUsfmBook(
+        "\\id MRK\n\\c 12\n\\p \\v 29 Jesus replied, \\wj “This is the most important: ‘Hear, O Israel, the Lord is One.\\wj*",
+      ),
+      parseUsfmBook(
+        "\\id LUK\n\\c 5\n\\p \\v 24 \\wj to forgive sins…”\\wj* He said to the paralytic, \\wj “I tell you, get up.”\\wj*",
+      ),
+    ];
+    const { verses, report } = applyFormatting(stored, books, options);
+
+    expect(words(verses[0])).toEqual(["“This is the most important: ‘Hear O Israel, the Lord is One."]);
+    expect(words(verses[1])).toEqual(["to forgive sins...”", "“I tell you, get up.”"]);
+    expect(verses.map((v) => v.text)).toEqual(stored.map((v) => v.text));
+    expect(report.skipped).toEqual([]);
+    expect(report.punctuationDiffers).toEqual([41_012_029, 42_005_024]);
+  });
+
+  it("skips a verse whose punctuation differs where a span starts or ends", () => {
+    // BSB John 6:42: the span ends on the closing quotation mark, which the
+    // two sources put on either side of the question mark.
+    const stored = [
+      record(43_006_042, "How then can He say, ‘I have come down from heaven?’”"),
+      // A bracketed mark is set aside only at the end of the verse, and only
+      // a closing quotation mark.
+      record(43_006_043, "“Stop grumbling among yourselves,” Jesus replied."),
+      record(43_006_044, "No one can come to Me unless the Father draws him."),
+    ];
+    const books = john(
+      6,
+      "\\p \\v 42 How then can He say, \\wj ‘I have come down from heaven’\\wj*?”\n" +
+        "\\p \\v 43 \\wj “Stop grumbling among yourselves,[”]\\wj* Jesus replied.\n" +
+        "\\v 44 \\wj No one can come to Me unless the Father draws him.[a]\\wj*",
+    );
+    const { verses, report } = applyFormatting(stored, books, options);
+
+    expect(verses).toEqual(stored);
+    expect(report).toMatchObject({ marked: 3, applied: 0, added: 0, punctuationDiffers: [] });
+    expect(report.skipped).toEqual([
+      { verseId: 43_006_042, reason: "text differs" },
+      { verseId: 43_006_043, reason: "text differs" },
+      { verseId: 43_006_044, reason: "text differs" },
+    ]);
+  });
+
+  it("skips a verse whose words differ, however slightly, and reports it", () => {
+    const stored = [
+      record(43_008_012, "“I am the light of the world.”"),
+      record(43_008_058, "“Truly, truly, I tell you,” Jesus declared, “before Abraham was born, I am!”"),
+    ];
+    const books = john(
+      8,
+      "\\p \\v 12 \\wj “I am the Light of the world.”\\wj*\n" +
+        "\\p \\v 58 \\wj “Truly, truly, I tell you,”\\wj* Jesus said, \\wj “before Abraham was born, I am!”\\wj*",
+    );
     const { verses, report } = applyFormatting(stored, books, options);
 
     expect(verses).toEqual(stored);
     expect(report).toMatchObject({ marked: 2, applied: 0, added: 0 });
     expect(report.skipped).toEqual([
-      { verseId: 43_006_042, reason: "text differs" },
-      { verseId: 43_013_038, reason: "text differs" },
+      { verseId: 43_008_012, reason: "text differs" },
+      { verseId: 43_008_058, reason: "text differs" },
     ]);
   });
 
@@ -144,26 +225,90 @@ describe("applyFormatting: paragraphs", () => {
     expect(report).toMatchObject({ added: 1, alreadyThere: 1 });
   });
 
-  it("stores a paragraph inside a verse only where the text has a line break", () => {
+  it("starts a paragraph inside a verse, turning the space before it into a line break", () => {
     const stored = [
       record(43_001_021, "They asked him, “Are you Elijah?”\nHe said, “I am not.”"),
-      record(43_001_022, "They said, “Who are you?” He answered them."),
+      // WEB John 1:38-39: a change of speaker, with a footnote and red-letter
+      // text on either side of it.
+      record(43_001_038, "He said, “What are you looking for?” They said to him, “Rabbi.”", {
+        footnotes: [{ offset: 36, text: "A note before the break" }],
+        wordsOfJesus: [{ start: 9, end: 36 }],
+      }),
+      record(43_001_039, "“Come and see.” They came and saw. It was about the tenth hour.", {
+        footnotes: [{ offset: 63, text: "4:00 p.m." }],
+        wordsOfJesus: [{ start: 0, end: 15 }],
+      }),
     ];
     const books = john(
       1,
-      "\\p\n\\v 21 They asked him, “Are you Elijah?”\n\\p He said, “I am not.”\n\\p\n\\v 22 They said, “Who are you?”\n\\p He answered them.",
+      "\\p\n\\v 21 They asked him, “Are you Elijah?”\n\\p He said, “I am not.”\n" +
+        "\\p\n\\v 38 He said, \\wj “What are you looking for?”\\wj*\n\\p They said to him, “Rabbi.”\n" +
+        "\\p\n\\v 39 \\wj “Come and see.”\\wj*\n\\p They came and saw. It was about the tenth hour.",
     );
     const { verses, report } = applyFormatting(stored, books, options);
 
-    expect(verses[0].breaks).toEqual([
+    // A line break that was there is used as it is.
+    expect(verses[0]).toEqual({
+      ...stored[0],
+      breaks: [{ offset: 0, kind: "paragraph" }, { offset: 34, kind: "paragraph" }],
+    });
+    expect(verses[1].text).toBe("He said, “What are you looking for?”\nThey said to him, “Rabbi.”");
+    expect(verses[1].breaks).toEqual([
       { offset: 0, kind: "paragraph" },
-      { offset: 34, kind: "paragraph" },
+      { offset: 37, kind: "paragraph" },
     ]);
-    // The text is never changed to make room for a break.
-    expect(verses[1].breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
-    expect(verses[1].text).toBe(stored[1].text);
+    expect(verses[2].text).toBe("“Come and see.”\nThey came and saw. It was about the tenth hour.");
+    expect(verses[2].breaks).toEqual([
+      { offset: 0, kind: "paragraph" },
+      { offset: 16, kind: "paragraph" },
+    ]);
+    // Only that one character changes, so nothing else moves.
+    for (const [i, verse] of verses.entries()) {
+      expect(verse.text.replaceAll("\n", " ")).toBe(stored[i].text.replaceAll("\n", " "));
+      expect(verse.footnotes).toEqual(stored[i].footnotes);
+      expect(verse.wordsOfJesus).toEqual(stored[i].wordsOfJesus);
+    }
+    expect(stored[1].text).not.toContain("\n");
+    expect(report).toMatchObject({ added: 6, alreadyThere: 0, lineBreaks: 2, unplaced: [] });
+  });
+
+  it("starts every paragraph of a verse that has several, and keeps a span across one whole", () => {
+    const stored = [
+      record(43_001_021, "“What then?” He said, “I am not.” “Are you the prophet?” He answered, “No.”", {
+        wordsOfJesus: [{ start: 22, end: 56 }],
+      }),
+    ];
+    const books = john(
+      1,
+      "\\p\n\\v 21 “What then?”\n\\p He said, “I am not.”\n\\p “Are you the prophet?”\n\\p He answered, “No.”",
+    );
+    const { verses, report } = applyFormatting(stored, books, options);
+
+    expect(verses[0].text).toBe(
+      "“What then?”\nHe said, “I am not.”\n“Are you the prophet?”\nHe answered, “No.”",
+    );
+    expect(verses[0].breaks.map((item) => item.offset)).toEqual([0, 13, 34, 57]);
+    expect(words(verses[0])).toEqual(["“I am not.”\n“Are you the prophet?”"]);
+    expect(report.lineBreaks).toBe(3);
+  });
+
+  it("leaves out a paragraph inside a verse where the text has no space to turn", () => {
+    const stored = [record(43_001_022, "They said, “Who are you?”—He answered them.")];
+    const books = john(1, "\\p\n\\v 22 They said, “Who are you?”—\n\\p He answered them.");
+    const { verses, report } = applyFormatting(stored, books, options);
+
+    expect(verses[0].text).toBe(stored[0].text);
+    expect(verses[0].breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
     expect(report.unplaced).toEqual([{ verseId: 43_001_022, offset: 26 }]);
-    expect(report.added).toBe(3);
+    expect(report).toMatchObject({ added: 1, lineBreaks: 0 });
+  });
+
+  it("does not make allowances for punctuation: only red-letter text does", () => {
+    const stored = [record(43_003_001, "Now there was a man of the Pharisees.")];
+    const books = john(3, "\\p\n\\v 1 Now there was a man, of the Pharisees.[’’]");
+    const { verses, report } = applyFormatting(stored, books, options);
+    expect(verses).toEqual(stored);
+    expect(report.skipped).toEqual([{ verseId: 43_003_001, reason: "text differs" }]);
   });
 
   it("skips a verse whose words differ and reports it", () => {

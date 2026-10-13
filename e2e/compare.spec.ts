@@ -48,9 +48,10 @@ test("pick translations and read them side by side", async ({ page }) => {
   expect(boxes[0]!.x).toBeLessThan(boxes[1]!.x);
   expect(boxes[1]!.x).toBeLessThan(boxes[2]!.x);
 
-  // Red-letter text where the translation marks it; the BSB does not.
-  await expect(cell(page, 43003016, "web").locator("[data-words-of-jesus]").first()).toBeVisible();
-  await expect(cell(page, 43003016, "bsb").locator("[data-words-of-jesus]")).toHaveCount(0);
+  // Red-letter text in every translation that marks it.
+  for (const id of ["bsb", "web", "kjv"]) {
+    await expect(cell(page, 43003016, id).locator("[data-words-of-jesus]").first()).toBeVisible();
+  }
 
   // Each translation keeps its own footnotes and attribution.
   await expect(cell(page, 43003016, "web").getByRole("link", { name: "Footnote a" })).toBeVisible();
@@ -100,4 +101,17 @@ test("verses stay aligned when a translation leaves one out", async ({ page }) =
   await expect(cell(page, 43005004, "kjv")).toContainText("For an angel went down");
   await expect(cell(page, 43005005, "bsb")).toContainText("thirty-eight years");
   await expect(cell(page, 43005005, "kjv")).toContainText("thirty and eight years");
+});
+
+test("a paragraph that starts inside a verse is a paragraph in both views", async ({ page }) => {
+  // WEB John 1:21 has three changes of speaker, each a new paragraph.
+  await page.goto("/read/john-1.19-23?t=web");
+  const paragraphs = page.locator("[data-passage='web'] p:has([data-verse-id])");
+  await expect(paragraphs).toHaveCount(8);
+  await expect(paragraphs.nth(3)).toHaveText("He said, “I am not.”");
+  await expect(page.locator("[data-passage='web'] [data-line]")).toHaveCount(0);
+
+  await page.goto("/read/john-1.19-23?t=web,kjv");
+  await expect(cell(page, 43001021, "web").locator("p")).toHaveCount(4);
+  await expect(cell(page, 43001021, "kjv").locator("p")).toHaveCount(1);
 });

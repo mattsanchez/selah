@@ -29,8 +29,19 @@ function describe(report: FormattingReport): string {
   ];
   if (report.kind === "paragraphs") {
     lines.push(
-      `${report.alreadyThere} were there already; ${report.unplaced.length} start inside a verse ` +
-        "where the text has no line break, and are not stored",
+      `${report.alreadyThere} were there already; ${report.lineBreaks} start inside a verse, ` +
+        "where a space in the text became a line break",
+    );
+    if (report.unplaced.length > 0) {
+      const verses = report.unplaced.map(({ verseId }) => formatVerseId(verseId)).join(", ");
+      lines.push(
+        `${report.unplaced.length} start inside a verse where the text has no space, and are not stored: ${verses}`,
+      );
+    }
+  } else if (report.punctuationDiffers.length > 0) {
+    lines.push(
+      `${report.punctuationDiffers.length} of them differ in punctuation outside the spans: ` +
+        report.punctuationDiffers.map(formatVerseId).join(", "),
     );
   }
   if (report.skipped.length > 0) {
@@ -45,7 +56,8 @@ function describe(report: FormattingReport): string {
 // Downloads a pinned source (or reads it from the cache), verifies its
 // checksum and normalizes it to verse records. A translation with a
 // formatting source then gets that source's paragraphs or red-letter spans
-// laid onto the same verses; their text does not change.
+// laid onto the same verses. Their words do not change; a paragraph that
+// starts inside a verse turns the space before it into a line break.
 export async function fetchVerses(
   source: BibleSource,
   books?: readonly string[],
