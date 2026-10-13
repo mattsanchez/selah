@@ -6,8 +6,9 @@ import { getOwner } from "@/lib/auth/owner";
 const link =
   "rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 
-// A strip across the top of every page, shown only to the signed-in owner.
-// Later milestones add the owner's own links (drafts, the feed) here.
+// A strip across the top of every page, shown only to the signed-in owner,
+// with the owner's own pages: "My items" is every highlight, reflection and
+// note, drafts included.
 export async function OwnerBar() {
   let owner;
   try {
@@ -31,6 +32,9 @@ export async function OwnerBar() {
         </span>
         <Link href="/highlights" className={link}>
           My highlights
+        </Link>
+        <Link href="/items" className={link}>
+          My items
         </Link>
         <Link href="/settings" className={link}>
           Settings

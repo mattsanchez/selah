@@ -44,8 +44,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 // A passage: in one translation, or in two to four side by side when the `t`
 // parameter names more than one. With verses selected (the `v` parameter)
-// the panel opens: the study of the first one and, for the owner, the form
-// that highlights them. The owner's highlights show on the verses they are
+// the panel opens: the study of the first one and, for the owner, the forms
+// that highlight them and write about them. The owner's highlights show on the verses they are
 // on, whichever translation is on show. See src/lib/reader-url.ts for the
 // URLs.
 export default async function PassagePage({ params, searchParams }: Props) {
@@ -142,6 +142,12 @@ export default async function PassagePage({ params, searchParams }: Props) {
     : {};
   let panel;
   if (verseId !== undefined) {
+    // What the owner has written on the selected verses.
+    const written = owner
+      ? (await itemsOnPassage(db, { ownerId: owner.id, ranges: selection })).filter(
+          (item) => item.kind !== "highlight",
+        )
+      : [];
     // Footnotes carry the markers and anchors the passage prints them with.
     const notes = parallel
       ? layoutParallel(columns.map((column) => column.ranges)).notes
@@ -174,6 +180,7 @@ export default async function PassagePage({ params, searchParams }: Props) {
               add={add}
               translationId={columns[0].translation.id}
               highlights={highlightsOn(highlights, selection)}
+              written={written}
             />
           )
         }

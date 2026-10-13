@@ -6,6 +6,8 @@ import { formatReference } from "@/lib/bible/reference";
 import { highlightColor } from "@/lib/items/palette";
 import type { Item } from "@/lib/items/queries";
 
+import { ShareControls } from "@/components/items/share-controls";
+
 import { HighlightForm } from "./highlight-form";
 
 const VISIBILITY = { private: "Private", unlisted: "Unlisted", public: "Public" } as const;
@@ -23,7 +25,7 @@ type HighlightCardProps = {
 };
 
 // One highlight, for its owner: the verses it is on, its color, note and
-// date, and the form that changes or deletes it. The color accent is the
+// date, the form that changes or deletes it, and "Share". The color accent is the
 // card's `data-highlight` (see "Highlights" in globals.css).
 export function HighlightCard({
   highlight,
@@ -58,7 +60,7 @@ export function HighlightCard({
           {color?.name ?? "No color"}
         </span>
         <span aria-hidden="true">·</span>
-        <span>{VISIBILITY[highlight.visibility]}</span>
+        <span data-visibility={highlight.visibility}>{VISIBILITY[highlight.visibility]}</span>
         <span aria-hidden="true">·</span>
         <time dateTime={highlight.createdAt.toISOString()}>
           {highlight.createdAt.toLocaleDateString("en", {
@@ -100,8 +102,8 @@ export function HighlightCard({
             </form>
           </div>
         </details>
-        {/* M8: the "Share" action goes here, beside Edit. It publishes the
-            highlight to the feed by changing its visibility and published_at. */}
+        {/* "Share" puts the highlight in the feed, as it is. */}
+        <ShareControls id={highlight.id} visibility={highlight.visibility} />
       </div>
     </article>
   );
