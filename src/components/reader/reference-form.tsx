@@ -9,13 +9,20 @@ type ReferenceFormProps = {
   error?: string;
 };
 
-// The reference box. A plain GET form to /read, so it works without
-// JavaScript; /read resolves the reference and redirects to the passage.
+// The one box of the reader and the search page: a reference opens the
+// passage, anything else searches the text. A plain GET form to /search, so
+// it works without JavaScript; /search tells the two apart (interpretQuery in
+// src/lib/search-url.ts) and redirects a reference to the passage.
 export function ReferenceForm({ value = "", t, error }: ReferenceFormProps) {
   return (
-    <form action="/read" method="get" role="search" aria-label="Look up a passage">
+    <form
+      action="/search"
+      method="get"
+      role="search"
+      aria-label="Look up a passage or search the Bible"
+    >
       <label htmlFor="reference" className="mb-1.5 block text-sm font-medium">
-        Passage
+        Passage or search
       </label>
       <div className="flex gap-2">
         <input
@@ -23,7 +30,7 @@ export function ReferenceForm({ value = "", t, error }: ReferenceFormProps) {
           name="q"
           type="text"
           defaultValue={value}
-          placeholder="John 3:16-21"
+          placeholder="John 3:16-21 or living water"
           autoComplete="off"
           autoCapitalize="off"
           spellCheck={false}
@@ -45,8 +52,10 @@ export function ReferenceForm({ value = "", t, error }: ReferenceFormProps) {
         </p>
       ) : (
         <p id="reference-hint" className="mt-2 text-sm text-stone-500 dark:text-stone-400">
-          A book, chapter or verses: <kbd className="font-sans">John 3:16-21</kbd>,{" "}
-          <kbd className="font-sans">jn3.16</kbd>, <kbd className="font-sans">Ps 23</kbd>.
+          A reference opens the passage: <kbd className="font-sans">John 3:16-21</kbd>,{" "}
+          <kbd className="font-sans">jn3.16</kbd>, <kbd className="font-sans">Ps 23</kbd>. Anything
+          else searches the text: <kbd className="font-sans">living water</kbd>,{" "}
+          <kbd className="font-sans">“good shepherd”</kbd>.
         </p>
       )}
     </form>

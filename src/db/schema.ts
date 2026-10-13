@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  customType,
   index,
   integer,
   jsonb,
@@ -29,6 +31,8 @@ export const translation = pgTable("translation", {
   provider: translationProvider().notNull().default("local"),
 });
 
+const tsvector = customType<{ data: string }>({ dataType: () => "tsvector" });
+
 export const verse = pgTable(
   "verse",
   {
@@ -44,9 +48,16 @@ export const verse = pgTable(
     // Paragraph and line starts, and red-letter spans, as offsets into `text`.
     breaks: jsonb().$type<Break[]>().notNull().default([]),
     wordsOfJesus: jsonb("words_of_jesus").$type<Span[]>().notNull().default([]),
+    // What keyword search matches (src/lib/bible/search.ts): the verse's words
+    // at weight A and the words of its headings, psalm titles included, at
+    // weight B. Kept up to date by Postgres; never written or read as a value.
+    search: tsvector().generatedAlwaysAs(
+      sql`setweight(to_tsvector('english'::regconfig, "text"), 'A') || setweight(jsonb_to_tsvector('english'::regconfig, jsonb_path_query_array("headings", '$[*].text'), '["string"]'), 'B')`,
+    ),
   },
   (table) => [
     primaryKey({ columns: [table.translationId, table.verseId] }),
     index("verse_verse_id_idx").on(table.verseId),
+    index("verse_search_idx").using("gin", table.search),
   ],
 );

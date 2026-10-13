@@ -1,0 +1,2 @@
+ALTER TABLE "verse" ADD COLUMN "search" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('english'::regconfig, "text"), 'A') || setweight(jsonb_to_tsvector('english'::regconfig, jsonb_path_query_array("headings", '$[*].text'), '["string"]'), 'B')) STORED;--> statement-breakpoint
+CREATE INDEX "verse_search_idx" ON "verse" USING gin ("search");

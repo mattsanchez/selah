@@ -30,8 +30,17 @@ export async function getPassages(
   );
   if (translationIds.length === 0 || ranges.length === 0) return result;
 
+  // Every column but the search index, which only Postgres reads.
   const rows = await db
-    .select()
+    .select({
+      translationId: verse.translationId,
+      verseId: verse.verseId,
+      text: verse.text,
+      headings: verse.headings,
+      footnotes: verse.footnotes,
+      breaks: verse.breaks,
+      wordsOfJesus: verse.wordsOfJesus,
+    })
     .from(verse)
     .where(
       and(
