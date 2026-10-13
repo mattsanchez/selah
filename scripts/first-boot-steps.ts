@@ -81,7 +81,7 @@ function crossReferencesStep(db: Db): BootStep {
     id: `study:${CROSS_REFERENCES.id}`,
     title: "Cross references (OpenBible.info)",
     version: CROSS_REFERENCES.contentSha256,
-    what: "The cross references from OpenBible.info",
+    what: "The cross-reference data from OpenBible.info",
     load: async ({ cacheDir, log }) => {
       const rows = await fetchCrossReferenceRows({ cacheDir: path.join(cacheDir, "study"), log });
       await loadCrossReferences(db, rows, { replace: true });

@@ -189,8 +189,8 @@ describe("import failures", () => {
 
   it("a study source that changed is reported the same way", () => {
     const error = new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64));
-    const { message } = describeImportFailure("The cross references from OpenBible.info", error);
-    expect(message).toContain("The cross references from OpenBible.info was not loaded");
+    const { message } = describeImportFailure("The cross-reference data from OpenBible.info", error);
+    expect(message).toContain("The cross-reference data from OpenBible.info was not loaded");
     expect(message).toContain(CROSS_REFERENCES.downloadUrl);
     expect(message).toContain("a.openbible.info");
     expect(message).toContain("trying again will not help");
