@@ -16,7 +16,7 @@ One install serves one writer. It is two containers, the app and Postgres, run b
 
 - Docker with Compose v2 (`docker compose version`), on Linux, macOS or Windows.
 - About 1 GB of free memory and 1 GB of disk: the image is about 400 MB, the database with everything loaded about 150 MB, and the downloaded source files about 60 MB.
-- Outbound HTTPS on first boot, to the six hosts listed under [what first boot does](#what-first-boot-does).
+- Outbound HTTPS on first boot, to GitHub or to the six publishers' hosts listed under [what first boot does](#what-first-boot-does).
 
 ### Start it
 
@@ -45,9 +45,9 @@ Afterwards, sign in at `/sign-in` and change any of it at `/settings`.
 
 1. Waits for Postgres and applies database migrations. This happens on every start, so an upgrade migrates itself.
 2. Starts the site. From here on it is reachable, and until there is an owner every page leads to the setup screen, which shows what is loading.
-3. Downloads each source in the table below, checks each file against the checksum this version of Selah was released with, and loads it. Each source is its own step, in this order, and a step that fails does not stop the others. On a fast connection all of it takes under a minute; allow several minutes on a slow one, since the downloads total about 60 MB. The setup form appears when every step has finished or failed.
+3. Downloads each source in the table below, checks each file against the checksum this version of Selah was released with, and loads it. Each file is asked for in two places: first Selah's own copy on GitHub (the [mirror](#where-the-files-come-from)), then its publisher. Each source is its own step, in this order, and a step that fails does not stop the others. On a fast connection all of it takes under a minute; allow several minutes on a slow one, since the downloads total about 60 MB. The setup form appears when every step has finished or failed.
 
-| Step | Loads | Downloaded from |
+| Step | Loads | Publisher's hosts |
 | :--- | :--- | :--- |
 | Berean Standard Bible (BSB) | 31,086 verses, with red-letter text | `bible.helloao.org`, `bereanbible.com` |
 | World English Bible (WEB) | 31,098 verses, with paragraph breaks | `bible.helloao.org`, `ebible.org` |
@@ -58,7 +58,17 @@ Afterwards, sign in at `/sign-in` and change any of it at `/settings`.
 | Adam Clarke's Commentary | 22,077 entries | `crosswire.org` |
 | Tyndale Open Study Notes | 16,913 notes | `tyndaleopenresources.com` |
 
-So the machine must be able to reach these six hosts over HTTPS on first boot:
+#### Where the files come from
+
+The publishers' addresses are not versioned: a publisher can change a file at any time, and Selah will not load a file that differs from the one it was checked against.
+So a copy of every file, exactly as it was when its checksum was pinned, is attached to a [data release](#data-releases) of this repository, and first boot asks there first:
+
+| Host | What |
+| :--- | :--- |
+| `github.com` | Selah's mirror: the data release this version was pinned against, <https://github.com/mattsanchez/selah/releases/tag/data-v1> |
+| `release-assets.githubusercontent.com` | Where GitHub serves a release's files from; `github.com` redirects there |
+
+When the mirror cannot be reached, or a file is not in it, the file is downloaded from its publisher instead:
 
 | Host | What |
 | :--- | :--- |
@@ -69,6 +79,12 @@ So the machine must be able to reach these six hosts over HTTPS on first boot:
 | `crosswire.org` | The three commentaries |
 | `tyndaleopenresources.com` | Tyndale Open Study Notes |
 
+Either set of hosts is enough: with GitHub reachable, first boot completes without the six publishers, and the other way round, as long as each publisher's file is still the one that was pinned.
+The same checksum is checked whichever place served the file, so the mirror is trusted no more than a publisher is.
+The setup screen and the Settings page say where each step's files came from ("Downloaded from the mirror at github.com."), and so do the app's logs.
+
+`SELAH_DATA_MIRROR` changes this (see [Configuration](#configuration)): `off` downloads from the publishers only, and a URL names a mirror of your own, which must serve each file under the name it has in the data release.
+
 After first boot Selah needs no outbound access (until you turn on AI or email).
 No Bible text, cross references or commentary is in the image, and the repository holds only the small test fixture; [DATA-LICENSES.md](DATA-LICENSES.md) lists each source and its license.
 
@@ -76,8 +92,8 @@ If a download fails, the others still load, and the setup screen (and later the 
 Setup can go ahead as long as at least one translation loaded.
 A missing study source only leaves its section of the reader's study panel empty ("No cross references for this verse.").
 
-- **A host could not be reached**: each download is tried three times. Fix the connection and run `docker compose restart app`; first boot continues with what is missing, and what is already loaded is not downloaded or loaded again.
-- **A file has changed** ("has changed since this version of Selah was released"): the publisher changed a file after it was pinned. Selah will not load text it has not been checked against, so retrying does not help: upgrade Selah, or [open an issue](https://github.com/mattsanchez/selah/issues). The cross references are the likeliest to do this: OpenBible.info rebuilds its file daily with its readers' latest votes.
+- **A host could not be reached**: a file fails this way only when neither the mirror nor its publisher could serve it, and the message names both. Each download is tried three times. Fix the connection and run `docker compose restart app`; first boot continues with what is missing, and what is already loaded is not downloaded or loaded again.
+- **A file has changed** ("has changed since this version of Selah was released"): the publisher changed a file after it was pinned. With the mirror reachable this is not an error, because the mirror has the pinned copy: the step loads from it. It fails only when the mirror could not be reached as well (then restoring access to `github.com` and restarting fixes it), or with `SELAH_DATA_MIRROR=off`. Selah will not load text it has not been checked against, so without the mirror retrying does not help: upgrade Selah, or [open an issue](https://github.com/mattsanchez/selah/issues). The cross references are the likeliest to do this: OpenBible.info rebuilds its file daily with its readers' latest votes.
 - **"Loading stopped before it finished"**: the app was stopped mid-import. `docker compose restart app` picks it up.
 
 ### Who can set up a new install
@@ -99,6 +115,7 @@ Everything is optional. Put what you need in a `.env` file beside `docker-compos
 | `SELAH_BIND` | `127.0.0.1` | The address it is published on. The default is reachable from the same machine only; see [putting it on the internet](#putting-it-on-the-internet). |
 | `SELAH_SECRET` | generated | The install's secret: it signs sessions and encrypts the saved AI keys. If unset, one is generated at first boot and kept in the data volume. If you set it, use at least 32 random characters (`openssl rand -base64 32`) and never change it: changing it signs everyone out and makes saved AI keys unreadable. |
 | `SELAH_SETUP_TOKEN` | generated | The token the setup screen asks for; see above. |
+| `SELAH_DATA_MIRROR` | Selah's data release on GitHub | Where first boot asks for each source file before it asks the publisher. `off`: the publishers only. A URL, e.g. `https://files.example.org/selah`: your own copy of the [data release](#data-releases)'s files, each under the same name. Every file is checked against the same checksum wherever it came from. |
 | `SMTP_URL` | unset | An SMTP server, e.g. `smtp://user:password@smtp.example.org:587` (or `smtps://` for port 465). With `EMAIL_FROM` and `SELAH_URL`, turns on sign-in links by email. |
 | `EMAIL_FROM` | unset | The sender of those emails, e.g. `Selah <selah@example.org>`. Required with `SMTP_URL`. |
 | `ANTHROPIC_API_KEY` | unset | An Anthropic API key, instead of saving one in Settings. |
@@ -192,6 +209,7 @@ To skip setup, seed the test owner as well: `SELAH_SEED_TEST_OWNER=1 pnpm db:see
 | `pnpm fixture:bible` | Rebuild the committed Bible fixture from the pinned sources |
 | `pnpm import:study` | Download and load the cross references, commentaries and study notes; see [Study data](#study-data) |
 | `pnpm fixture:study` | Rebuild the committed study fixture from the pinned sources |
+| `pnpm data:release` | Stage the [data release](#data-releases) from the download cache and verify it; with `--publish`, publish it |
 | `pnpm e2e:serve` | Build and serve on 127.0.0.1:3000 against the seeded database with the AI provider stubbed |
 | `pnpm e2e` | Playwright tests; reuses a running `pnpm e2e:serve`, or starts one. It also seeds the test owner and starts a second server for journey 1; see [Owner account](#owner-account-and-settings) |
 
@@ -216,13 +234,13 @@ pnpm import:bible          # all three, about 93,000 verses
 pnpm import:bible bsb      # or only the ones you name: bsb, web, kjv
 ```
 
-It applies pending migrations, downloads each translation from the [Free Use Bible API](https://bible.helloao.org/) into `.cache/bible/` (ignored by git), verifies it against the checksum pinned in `src/lib/bible/import/sources.ts`, and loads the `translation` and `verse` tables.
+It applies pending migrations, downloads each translation into `.cache/bible/` (ignored by git), from Selah's [mirror](#data-releases) or else from the [Free Use Bible API](https://bible.helloao.org/), verifies it against the checksum pinned in `src/lib/bible/import/sources.ts`, and loads the `translation` and `verse` tables.
 Two translations need a second download, from their publishers, for formatting the API leaves out: the BSB's red-letter text (berean.bible) and the WEB's prose paragraphs (ebible.org).
 These are pinned and verified the same way, and only their formatting is used: the words of every verse come from the first file. [DATA-LICENSES.md](DATA-LICENSES.md) says how the two are matched and what is left out.
 It is safe to re-run: a second run reuses the cached files and changes nothing.
 
-If it stops with a checksum mismatch, the upstream text (or, for a second download, its text or formatting) has changed since it was pinned.
-Review the change, update the pin, and run `pnpm fixture:bible` to rebuild the fixture from the new text.
+If it stops with a checksum mismatch, the upstream text (or, for a second download, its text or formatting) has changed since it was pinned, and the mirror could not supply the pinned copy.
+Updating a pin is deliberate, reviewed work: see [refreshing a source](#refreshing-a-source).
 
 Each verse is stored as plain text with its headings, footnotes, paragraph breaks and red-letter spans beside it as structured JSON (the shapes are in `src/lib/bible/types.ts`).
 Verses are keyed by a canonical id, `BBCCCVVV` (John 3:16 is `43003016`), shared by every translation; `src/lib/bible` has the helpers and explains how numbering differences between translations are handled.
@@ -244,14 +262,59 @@ pnpm import:study cross-references   # or only the ones you name: cross-referenc
 | Matthew Henry, Jamieson-Fausset-Brown and Adam Clarke | [CrossWire Bible Society](https://crosswire.org/sword/modules/ModDisp.jsp?modType=Commentaries) SWORD modules | Public domain |
 | Tyndale Open Study Notes | [Tyndale House Publishers](https://tyndaleopenresources.com/) | CC BY-SA 4.0 |
 
-Like the Bible import, it downloads each source into `.cache/bible/`, verifies it against the checksum pinned in `src/lib/study/sources.ts`, and is safe to re-run; it takes about half a minute.
-A checksum mismatch means the upstream content has changed: review it, update the pin, and run `pnpm fixture:study`.
-OpenBible.info counts votes as they come in, so its pin is the one most likely to need this.
+Like the Bible import, it downloads each source into `.cache/bible/`, from the mirror or else from its publisher, verifies it against the checksum pinned in `src/lib/study/sources.ts`, and is safe to re-run; it takes about half a minute.
+A checksum mismatch means the upstream content has changed and the mirror could not supply the pinned copy; see [refreshing a source](#refreshing-a-source).
+OpenBible.info counts votes as they come in, so its file is the one that changes most often.
 
 Cross references are stored in `cross_ref`, and commentary and notes in `commentary_entry`, each entry on an inclusive range of verse ids: a verse, a section, a chapter (its introduction) or a book.
 Every entry belongs to a `commentary_source` row carrying its license and attribution.
 The sources' markup is never printed as it arrives: the import reduces it to a handful of tags (`src/lib/study/html.ts`), and the page passes what was stored through the same sanitizer again.
 [DATA-LICENSES.md](DATA-LICENSES.md) has each license and what the import changes.
+
+## Data releases
+
+All ten pinned source files are mirrored as assets of a GitHub release of this repository that holds data only: a *data release*, tagged `data-v1`, `data-v2` and so on.
+That is the three translations, the two formatting archives, the cross references, the three commentaries and the study notes; none is left to its publisher alone.
+The three commentaries are the CrossWire Bible Society's SWORD module packages: the commentary text is public domain, and each module's own `DistributionLicense` field is `Public Domain`. [DATA-LICENSES.md](DATA-LICENSES.md#selahs-mirror-of-these-files) gives the terms each file is mirrored under.
+It is not a version of Selah and holds no code. GitHub lists it as a pre-release: that is the one marking that keeps GitHub from ever presenting a data release as the latest version of Selah.
+No dataset is committed to git.
+
+A data release holds:
+
+- each pinned file, byte for byte as its publisher served it, named `<source id>-<first 12 characters of its pin>.<json|zip>` (the name it has in `.cache/bible/`);
+- `NOTICES.md`, with each file's license, attribution and notice;
+- `MANIFEST.json`, with, for each file: its upstream URL and publisher's page, when this copy was downloaded, its size, the SHA-256 of its bytes, the pin it satisfies and the function that computes that pin, its license and its attribution.
+
+`DATA_RELEASE` in `src/lib/bible/import/mirror.ts` names the data release this version of the code is pinned against, and the mirror URL is derived from it there and nowhere else: `https://github.com/mattsanchez/selah/releases/download/<DATA_RELEASE>/<file name>`.
+A published data release is never edited or deleted, because older versions of Selah look for their files under its tag. Several exist side by side.
+
+### Publishing one
+
+```sh
+pnpm data:release             # stage in .cache/data-release/<tag>/ and verify; publishes nothing
+pnpm data:release --publish   # also publish it, with the gh CLI
+```
+
+A maintainer runs this on purpose. Nothing runs it automatically, and it refuses to run in CI.
+It needs the [`gh` CLI](https://cli.github.com/) signed in with write access to the repository; it creates no token.
+
+1. It fills `.cache/bible/` with any pinned file not already there, and checks every file against its pin.
+2. It stages the files, `MANIFEST.json` and `NOTICES.md`. **A file that is missing or does not match its pin stops it, and nothing is staged or published.**
+3. With `--publish`: it checks the staged files against their pins once more, creates the release as a draft, uploads the files, and publishes it as a pre-release that is not the latest. If the tag is already published with the same files it does nothing; with different files it refuses, and `DATA_RELEASE` must name a new tag. A draft left by an interrupted run is completed.
+
+The license notices are written in `src/lib/data-release/catalog.ts`; a source with no notice there cannot be released.
+Only public-domain or openly licensed files may be mirrored. A file whose terms do not allow it is marked `upstreamOnly` on its source, and is then left out of the release and downloaded from its publisher only.
+
+### Refreshing a source
+
+When a publisher changes a file, installs keep working from the mirror, so a refresh is never urgent and never automatic. It is one reviewed pull request:
+
+1. Download the new file and review what changed (wording, verse numbering, formatting, license).
+2. Update its pin in `src/lib/bible/import/sources.ts` or `src/lib/study/sources.ts`, and check its entry in `DATA-LICENSES.md` and its notice in `src/lib/data-release/catalog.ts`.
+3. Rebuild the fixture: `pnpm fixture:bible` or `pnpm fixture:study`.
+4. Name a new data release in `DATA_RELEASE` (`data-v2` after `data-v1`).
+5. Run `pnpm import:bible` or `pnpm import:study` so the cache holds the new file, then `pnpm data:release`, and `pnpm data:release --publish` once the pull request is approved. The new release holds every pinned file, changed or not.
+6. Merge, and release that version of Selah. Installs that upgrade load the changed source again at their next start; older versions keep using the older data release.
 
 ## Reader
 

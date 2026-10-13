@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import path from "node:path";
 
-import { CACHE_DIR, download } from "@/lib/bible/import/download";
+import {
+  fetchPinnedFile,
+  type FetchOptions,
+  type Origin,
+  type PinnedFile,
+} from "@/lib/bible/import/download";
+import { pinnedFileName, type DownloadSource } from "@/lib/bible/import/mirror";
 import { readZip } from "@/lib/bible/import/zip";
 
 import type { CommentarySource, StudyDownload } from "../sources";
@@ -11,11 +15,12 @@ import { parseCrossReferences, type SkippedLine } from "./openbible";
 import { normalizeSwordEntries, readSwordModule, type SwordEntry } from "./sword";
 import { normalizeTyndaleItems, parseTyndaleItems, type TyndaleItem } from "./tyndale";
 
-// Downloads the study sources, keeps them in the Bible import's cache and
-// checks each against its pin. As there, a pin is a SHA-256 over what the
-// import reads from a file rather than over its bytes: OpenBible.info rebuilds
-// its archive daily with the date in the header line, and the commentaries'
-// archives carry files the import does not read.
+// Downloads the study sources (from Selah's mirror, then from the publisher),
+// keeps them in the Bible import's cache and checks each against its pin. As
+// there, a pin is a SHA-256 over what the import reads from a file rather
+// than over its bytes: OpenBible.info rebuilds its archive daily with the date
+// in the header line, and the commentaries' archives carry files the import
+// does not read.
 
 const sha256 = (content: unknown) =>
   createHash("sha256").update(JSON.stringify(content)).digest("hex");
@@ -38,60 +43,54 @@ export function tyndaleSha256(items: readonly TyndaleItem[]): string {
 }
 
 export class StudyChecksumError extends Error {
-  // The file that no longer matches its pin.
+  // The copy that does not match the pin: the publisher's file, or the
+  // mirror's copy of it.
   readonly url: string;
 
-  constructor(source: StudyDownload, actual: string) {
+  constructor(
+    source: StudyDownload,
+    actual: string,
+    served: DownloadSource = { url: source.downloadUrl, mirror: false },
+  ) {
     super(
-      `Checksum mismatch for ${source.name} (${source.downloadUrl}).\n` +
+      `Checksum mismatch for ${source.name} (${served.url}).\n` +
         `  pinned: ${source.contentSha256}\n` +
         `  got:    ${actual}\n` +
-        "The upstream content has changed since it was pinned. Review the new file, " +
-        "then update the pin in src/lib/study/sources.ts.",
+        (served.mirror
+          ? "The mirror's copy is not the file that was pinned."
+          : "The upstream content has changed since it was pinned. Review the new file, " +
+            "then update the pin in src/lib/study/sources.ts."),
     );
     this.name = "StudyChecksumError";
-    this.url = source.downloadUrl;
+    this.url = served.url;
   }
 }
 
-export type FetchOptions = { cacheDir?: string; fetchImpl?: typeof fetch };
+export type { FetchOptions };
 
-// Returns what `read` makes of the pinned archive, from the cache when it
-// holds it. Throws StudyChecksumError rather than return content that does
-// not match the pin.
-async function fetchPinned<T>(
+// A study source's pinned archive: `read` is what the import takes from its
+// files, and `checksum` what the pin is over.
+function archive<T>(
   source: StudyDownload,
   read: (files: Map<string, Uint8Array>) => T,
   checksum: (content: T) => string,
-  { cacheDir = CACHE_DIR, fetchImpl = fetch }: FetchOptions = {},
-): Promise<{ content: T; cached: boolean }> {
-  const file = path.join(cacheDir, `${source.id}-${source.contentSha256.slice(0, 12)}.zip`);
-  const parse = (bytes: Uint8Array): T | undefined => {
-    try {
-      return read(readZip(bytes));
-    } catch {
-      return undefined;
-    }
+): PinnedFile<T> {
+  return {
+    name: pinnedFileName(source.id, source.contentSha256, "zip"),
+    upstreamUrl: source.downloadUrl,
+    pin: source.contentSha256,
+    mirrored: !source.upstreamOnly,
+    read: (bytes) => {
+      try {
+        return read(readZip(bytes));
+      } catch {
+        return undefined;
+      }
+    },
+    checksum,
+    expected: `the archive ${source.name} is published in`,
+    mismatch: (actual, served) => new StudyChecksumError(source, actual, served),
   };
-
-  const cached = await readFile(file).then(parse, () => undefined);
-  if (cached !== undefined && checksum(cached) === source.contentSha256) {
-    return { content: cached, cached: true };
-  }
-
-  // A DownloadError when the host is unreachable or answers with an error.
-  const bytes = await download([source.downloadUrl], fetchImpl);
-  const content = parse(bytes);
-  if (content === undefined) {
-    throw new Error(`${source.downloadUrl} is not the archive ${source.name} is published in`);
-  }
-  const actual = checksum(content);
-  if (actual !== source.contentSha256) throw new StudyChecksumError(source, actual);
-
-  await mkdir(cacheDir, { recursive: true });
-  await writeFile(`${file}.tmp`, bytes);
-  await rename(`${file}.tmp`, file);
-  return { content, cached: false };
 }
 
 function textFile(files: Map<string, Uint8Array>, name: string): string {
@@ -101,30 +100,18 @@ function textFile(files: Map<string, Uint8Array>, name: string): string {
   throw new Error(`${name} is missing`);
 }
 
-export async function fetchCrossReferences(
-  source: StudyDownload,
-  options?: FetchOptions,
-): Promise<{ rows: CrossRef[]; skipped: SkippedLine[]; cached: boolean }> {
-  const { content, cached } = await fetchPinned(
+export function crossReferencesFile(source: StudyDownload) {
+  return archive(
     source,
     (files) => parseCrossReferences(textFile(files, "cross_references.txt")),
     (parsed) => crossReferencesSha256(parsed.rows),
-    options,
   );
-  return { ...content, cached };
 }
 
-// A commentary's records, and the names of any notes left out because their
-// passage is not in the canon.
-export async function fetchCommentary(
-  source: CommentarySource,
-  options?: FetchOptions,
-): Promise<{ records: CommentaryRecord[]; skipped: string[]; cached: boolean }> {
-  if (source.format === "sword") {
-    const { content, cached } = await fetchPinned(source, readSwordModule, swordSha256, options);
-    return { records: normalizeSwordEntries(content, source), skipped: [], cached };
-  }
-  const { content, cached } = await fetchPinned(
+const swordFile = (source: CommentarySource) => archive(source, readSwordModule, swordSha256);
+
+const tyndaleFile = (source: CommentarySource) =>
+  archive(
     source,
     (files) => {
       const items = parseTyndaleItems(textFile(files, "StudyNotes.xml"));
@@ -132,7 +119,32 @@ export async function fetchCommentary(
       return items;
     },
     tyndaleSha256,
-    options,
   );
-  return { ...normalizeTyndaleItems(content), cached };
+
+export function commentaryFile(source: CommentarySource): PinnedFile<unknown> {
+  // A PinnedFile reads and checksums its own content, so the kind of content
+  // does not matter to a caller that only verifies the file.
+  return (source.format === "sword" ? swordFile(source) : tyndaleFile(source)) as PinnedFile<unknown>;
+}
+
+export async function fetchCrossReferences(
+  source: StudyDownload,
+  options?: FetchOptions,
+): Promise<{ rows: CrossRef[]; skipped: SkippedLine[] } & Origin> {
+  const { content, ...origin } = await fetchPinnedFile(crossReferencesFile(source), options);
+  return { ...content, ...origin };
+}
+
+// A commentary's records, and the names of any notes left out because their
+// passage is not in the canon.
+export async function fetchCommentary(
+  source: CommentarySource,
+  options?: FetchOptions,
+): Promise<{ records: CommentaryRecord[]; skipped: string[] } & Origin> {
+  if (source.format === "sword") {
+    const { content, ...origin } = await fetchPinnedFile(swordFile(source), options);
+    return { records: normalizeSwordEntries(content, source), skipped: [], ...origin };
+  }
+  const { content, ...origin } = await fetchPinnedFile(tyndaleFile(source), options);
+  return { ...normalizeTyndaleItems(content), ...origin };
 }

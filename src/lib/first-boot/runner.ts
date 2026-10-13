@@ -15,8 +15,9 @@ export type BootStep = {
   // skipped on the next start unless this has changed.
   version: string;
   // Must be idempotent: it runs again after a failure or an interrupted start.
-  // Throw a FirstBootError to choose what the status page says.
-  run(context: { log: (message: string) => void }): Promise<void>;
+  // Throw a FirstBootError to choose what the status page says. May return a
+  // note for the status page, such as where the files were downloaded from.
+  run(context: { log: (message: string) => void }): Promise<string | void>;
 };
 
 export type BootStepRow = {
@@ -51,7 +52,7 @@ export type BootStepStore = {
   // `keepDone` becomes pending, and rows of steps no longer in the list go.
   register(steps: readonly BootStep[], keepDone: readonly string[]): Promise<void>;
   start(id: string): Promise<void>;
-  finish(id: string): Promise<void>;
+  finish(id: string, note?: string): Promise<void>;
   fail(id: string, message: string): Promise<void>;
   // Marks every unfinished step as still being worked on.
   heartbeat(): Promise<void>;
@@ -102,8 +103,8 @@ export async function runFirstBoot(
       log(`first boot: ${step.title}: starting`);
       await store.start(step.id);
       try {
-        await step.run({ log: (message) => log(`first boot: ${message}`) });
-        await store.finish(step.id);
+        const note = await step.run({ log: (message) => log(`first boot: ${message}`) });
+        await store.finish(step.id, note || undefined);
         result.done.push(step.id);
         log(`first boot: ${step.title}: done`);
       } catch (error) {

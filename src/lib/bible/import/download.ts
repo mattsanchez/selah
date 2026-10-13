@@ -4,6 +4,12 @@ import path from "node:path";
 
 import { bookByUsfm } from "../books";
 import type { HelloaoTranslation } from "./helloao";
+import {
+  downloadSources,
+  mirrorUrl,
+  pinnedFileName,
+  type DownloadSource,
+} from "./mirror";
 import type { BibleSource, FormattingSource } from "./sources";
 import { parseUsfmBook, type UsfmBook } from "./usfm";
 import { readZip } from "./zip";
@@ -51,7 +57,8 @@ export function formattingSha256(books: readonly UsfmBook[]): string {
 }
 
 export class ChecksumError extends Error {
-  // The file that no longer matches its pin.
+  // The copy that does not match the pin: the publisher's file, or the
+  // mirror's copy of it.
   readonly url: string;
 
   constructor(
@@ -59,16 +66,19 @@ export class ChecksumError extends Error {
     actual: string,
     // The pinned file: the source itself, or its formatting source.
     file: Pick<BibleSource, "downloadUrl" | "contentSha256"> = source,
+    served: DownloadSource = { url: file.downloadUrl, mirror: false },
   ) {
     super(
-      `Checksum mismatch for ${source.abbrev} (${file.downloadUrl}).\n` +
+      `Checksum mismatch for ${source.abbrev} (${served.url}).\n` +
         `  pinned: ${file.contentSha256}\n` +
         `  got:    ${actual}\n` +
-        "The upstream text has changed since it was pinned. Review the new file, " +
-        "then update the pin in src/lib/bible/import/sources.ts.",
+        (served.mirror
+          ? "The mirror's copy is not the file that was pinned."
+          : "The upstream text has changed since it was pinned. Review the new file, " +
+            "then update the pin in src/lib/bible/import/sources.ts."),
     );
     this.name = "ChecksumError";
-    this.url = file.downloadUrl;
+    this.url = served.url;
   }
 }
 
@@ -104,23 +114,123 @@ async function downloadFrom(url: string, fetchImpl: typeof fetch): Promise<Uint8
   }
 }
 
-// Fetches a pinned file from the first of `urls` that answers. Today each
-// file has one URL, its publisher's; a mirror would be a second entry, tried
-// in the order given. Whichever copy arrives is checked against the same pin
-// by the caller. Throws the last URL's DownloadError when none answers.
-export async function download(
-  urls: readonly string[],
-  fetchImpl: typeof fetch = fetch,
-): Promise<Uint8Array> {
-  let failure: unknown = new Error("No download URL given");
-  for (const url of urls) {
-    try {
-      return await downloadFrom(url, fetchImpl);
-    } catch (error) {
-      failure = error;
-    }
+// A pinned file: where it is downloaded from, what it must hash to, and how
+// the import reads it. The Bible sources are described below; the study
+// sources in src/lib/study/import/download.ts.
+export type PinnedFile<T> = {
+  // Its name in the download cache and in the mirror (see pinnedFileName).
+  name: string;
+  upstreamUrl: string;
+  pin: string;
+  // False for a file that is not in the mirror, which is then not asked.
+  mirrored: boolean;
+  // What the import reads from the file, or undefined when the bytes are not
+  // this kind of file. May throw to say what is wrong with it.
+  read(bytes: Uint8Array): T | undefined;
+  // The checksum the pin is compared with, over what `read` returned.
+  checksum(content: T): string;
+  // Completes "<url> is not …" when `read` returns undefined.
+  expected: string;
+  mismatch(actual: string, served: DownloadSource): Error;
+};
+
+// A place a pinned file was asked for, and why its copy was not used.
+export type SourceFailure = DownloadSource & { error: Error };
+
+// Thrown when a file was asked for in more than one place and none gave a
+// copy that matches the pin. With a single place, its own error is thrown.
+export class SourcesFailedError extends Error {
+  constructor(readonly failures: readonly SourceFailure[]) {
+    super(failures.map(({ error }) => error.message).join("\n"));
+    this.name = "SourcesFailedError";
   }
-  throw failure;
+}
+
+// Whether trying again later could succeed: true when some place could not
+// be reached, false when every place answered with a file that is not the
+// pinned one.
+export function isRetryable(error: unknown): boolean {
+  if (error instanceof SourcesFailedError) {
+    return error.failures.some((failure) => failure.error instanceof DownloadError);
+  }
+  return error instanceof DownloadError;
+}
+
+export type FetchOptions = {
+  cacheDir?: string;
+  fetchImpl?: typeof fetch;
+  // The mirror to ask first; null for none. The default is mirrorUrl().
+  mirror?: string | null;
+};
+
+// Where a pinned file came from: the cache, or the place that served it,
+// with the places asked before it that failed.
+export type Origin = { cached: boolean; from?: DownloadSource; failures: SourceFailure[] };
+
+// Returns what the import reads from a pinned file, from the cache when it
+// holds the file. Otherwise the file is downloaded from the mirror, and from
+// the publisher when the mirror cannot be reached or its copy does not match.
+// Every copy is checked against the same pin, wherever it came from, and
+// nothing that fails it is returned or cached.
+export async function fetchPinnedFile<T>(
+  file: PinnedFile<T>,
+  { cacheDir = CACHE_DIR, fetchImpl = fetch, mirror }: FetchOptions = {},
+): Promise<{ content: T } & Origin> {
+  const cacheFile = path.join(cacheDir, file.name);
+  const cached = await readFile(cacheFile)
+    .then((bytes) => file.read(bytes))
+    .catch(() => undefined);
+  if (cached !== undefined && file.checksum(cached) === file.pin) {
+    return { content: cached, cached: true, failures: [] };
+  }
+
+  const sources = downloadSources(file, mirror === undefined ? mirrorUrl() : (mirror ?? undefined));
+  const failures: SourceFailure[] = [];
+  for (const source of sources) {
+    let bytes: Uint8Array;
+    let content: T | undefined;
+    try {
+      bytes = await downloadFrom(source.url, fetchImpl);
+      content = file.read(bytes);
+      if (content === undefined) throw new Error(`${source.url} is not ${file.expected}`);
+      const actual = file.checksum(content);
+      if (actual !== file.pin) throw file.mismatch(actual, source);
+    } catch (error) {
+      failures.push({ ...source, error: error instanceof Error ? error : new Error(String(error)) });
+      continue;
+    }
+    await mkdir(cacheDir, { recursive: true });
+    await writeFile(`${cacheFile}.tmp`, bytes);
+    await rename(`${cacheFile}.tmp`, cacheFile);
+    return { content, cached: false, from: source, failures };
+  }
+  if (failures.length === 1) throw failures[0].error;
+  throw new SourcesFailedError(failures);
+}
+
+// How a source is named in progress and failure messages.
+export function describeSource({ url, mirror }: DownloadSource): string {
+  const { host } = new URL(url);
+  return mirror ? `the mirror at ${host}` : host;
+}
+
+// Why a place's copy of a file was not used, in a few words.
+export function describeFailure({ error }: SourceFailure): string {
+  if (error instanceof DownloadError) return error.reason;
+  if (error.name === "ChecksumError" || error.name === "StudyChecksumError") {
+    return "its copy does not match the pinned checksum";
+  }
+  return error.message;
+}
+
+// "cached", or where the file was downloaded from and which places failed
+// before that one.
+export function describeOrigin({ cached, from, failures }: Origin): string {
+  if (cached || !from) return "cached";
+  const failed = failures.map(
+    (failure) => `${describeSource(failure)} was not used: ${describeFailure(failure)}`,
+  );
+  return `downloaded from ${describeSource(from)}` + (failed.length > 0 ? ` (${failed.join("; ")})` : "");
 }
 
 function parse(bytes: Uint8Array): HelloaoTranslation | undefined {
@@ -132,34 +242,28 @@ function parse(bytes: Uint8Array): HelloaoTranslation | undefined {
   }
 }
 
+// A translation's main file, from the Free Use Bible API.
+export function sourceFile(source: BibleSource): PinnedFile<HelloaoTranslation> {
+  return {
+    name: pinnedFileName(source.id, source.contentSha256, "json"),
+    upstreamUrl: source.downloadUrl,
+    pin: source.contentSha256,
+    mirrored: !source.upstreamOnly,
+    read: parse,
+    checksum: contentSha256,
+    expected: "a Bible translation in JSON",
+    mismatch: (actual, served) => new ChecksumError(source, actual, source, served),
+  };
+}
+
 // Returns the pinned translation, from the cache when it holds it. Throws
-// ChecksumError rather than return content that does not match the pin.
+// rather than return content that does not match the pin.
 export async function fetchSource(
   source: BibleSource,
-  { cacheDir = CACHE_DIR, fetchImpl = fetch } = {},
-): Promise<{ translation: HelloaoTranslation; cached: boolean }> {
-  const file = path.join(
-    cacheDir,
-    `${source.id}-${source.contentSha256.slice(0, 12)}.json`,
-  );
-
-  const cached = await readFile(file).then(parse, () => undefined);
-  if (cached && contentSha256(cached) === source.contentSha256) {
-    return { translation: cached, cached: true };
-  }
-
-  const bytes = await download([source.downloadUrl], fetchImpl);
-  const translation = parse(bytes);
-  if (!translation) {
-    throw new Error(`${source.downloadUrl} is not a Bible translation in JSON`);
-  }
-  const actual = contentSha256(translation);
-  if (actual !== source.contentSha256) throw new ChecksumError(source, actual);
-
-  await mkdir(cacheDir, { recursive: true });
-  await writeFile(`${file}.tmp`, bytes);
-  await rename(`${file}.tmp`, file);
-  return { translation, cached: false };
+  options?: FetchOptions,
+): Promise<{ translation: HelloaoTranslation } & Origin> {
+  const { content, ...origin } = await fetchPinnedFile(sourceFile(source), options);
+  return { translation: content, ...origin };
 }
 
 // The books of the Bible in an archive of USFM files, one file per book.
@@ -180,29 +284,30 @@ function parseUsfmArchive(bytes: Uint8Array): UsfmBook[] | undefined {
   return books.length > 0 ? books : undefined;
 }
 
+// A translation's formatting file, from its publisher.
+export function formattingFile(
+  source: BibleSource & { formatting: FormattingSource },
+): PinnedFile<UsfmBook[]> {
+  const { formatting } = source;
+  return {
+    name: pinnedFileName(`${source.id}-formatting`, formatting.contentSha256, "zip"),
+    upstreamUrl: formatting.downloadUrl,
+    pin: formatting.contentSha256,
+    mirrored: !formatting.upstreamOnly,
+    read: parseUsfmArchive,
+    checksum: formattingSha256,
+    expected: "a zip archive of USFM files",
+    mismatch: (actual, served) => new ChecksumError(source, actual, formatting, served),
+  };
+}
+
 // Returns the books of a translation's pinned formatting source, from the
-// cache when it holds them. Throws ChecksumError rather than return content
-// that does not match the pin.
+// cache when it holds them. Throws rather than return content that does not
+// match the pin.
 export async function fetchFormatting(
   source: BibleSource & { formatting: FormattingSource },
-  { cacheDir = CACHE_DIR, fetchImpl = fetch } = {},
-): Promise<{ books: UsfmBook[]; cached: boolean }> {
-  const { downloadUrl, contentSha256: pinned } = source.formatting;
-  const file = path.join(cacheDir, `${source.id}-formatting-${pinned.slice(0, 12)}.zip`);
-
-  const cached = await readFile(file).then(parseUsfmArchive, () => undefined);
-  if (cached && formattingSha256(cached) === pinned) {
-    return { books: cached, cached: true };
-  }
-
-  const bytes = await download([downloadUrl], fetchImpl);
-  const books = parseUsfmArchive(bytes);
-  if (!books) throw new Error(`${downloadUrl} is not a zip archive of USFM files`);
-  const actual = formattingSha256(books);
-  if (actual !== pinned) throw new ChecksumError(source, actual, source.formatting);
-
-  await mkdir(cacheDir, { recursive: true });
-  await writeFile(`${file}.tmp`, bytes);
-  await rename(`${file}.tmp`, file);
-  return { books, cached: false };
+  options?: FetchOptions,
+): Promise<{ books: UsfmBook[] } & Origin> {
+  const { content, ...origin } = await fetchPinnedFile(formattingFile(source), options);
+  return { books: content, ...origin };
 }

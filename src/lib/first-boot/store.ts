@@ -43,10 +43,10 @@ export function bootStepStore(db: Db): BootStepStore {
         .set({ status: "running", startedAt: sql`now()`, heartbeatAt: sql`now()` })
         .where(eq(bootStep.id, id));
     },
-    finish: async (id) => {
+    finish: async (id, note) => {
       await db
         .update(bootStep)
-        .set({ status: "done", message: null, finishedAt: sql`now()` })
+        .set({ status: "done", message: note ?? null, finishedAt: sql`now()` })
         .where(eq(bootStep.id, id));
     },
     fail: async (id, message) => {
