@@ -4,8 +4,10 @@ import type { VerseRange } from "@/lib/bible/verse-id";
 import type { Errors, Result } from "@/lib/settings/validate";
 
 import { isHighlightColor, type HighlightColorId } from "./palette";
+import type { ItemVisibility } from "./queries";
+import { parseTags, type TagName } from "./tags";
 
-// Validation of what the highlight forms submit. Pure functions: the server
+// Validation of what the forms for highlights, reflections and notes submit. Pure functions: the server
 // actions call them, and so do the unit tests.
 
 // A highlight's note is one line.
@@ -85,4 +87,79 @@ export function validateNewHighlight(
       ? input.translationId
       : null;
   return { ok: true, value: { ...edit.value, passages, translationId } };
+}
+
+// --- Reflections and notes ---
+
+export const MAX_ITEM_TITLE_LENGTH = 200;
+// A reflection is a post, not a book.
+export const MAX_MARKDOWN_LENGTH = 100_000;
+// A note is the quick post: a few sentences.
+export const MAX_NOTE_BODY_LENGTH = 2000;
+
+const VISIBILITIES: readonly ItemVisibility[] = ["private", "unlisted", "public"];
+
+export const isVisibility = (value: unknown): value is ItemVisibility =>
+  VISIBILITIES.includes(value as ItemVisibility);
+
+// A title as it is stored: one line, or null when there is none.
+export const normalizeTitle = normalizeNote;
+
+export type ContentField = "title" | "markdown" | "tags" | "passage";
+export type Content = { title: string | null; markdown: string; tags: TagName[] };
+
+// What the editor saves: a reflection's title, Markdown and tags, or a
+// note's Markdown and tags. A note has no title and is never empty.
+export function validateContent(
+  input: { title?: string; markdown: string; tags: string },
+  kind: "reflection" | "note",
+): Result<Content, ContentField> {
+  const errors: Errors<ContentField> = {};
+  const title = kind === "reflection" ? normalizeTitle(input.title ?? "") : null;
+  if (title && title.length > MAX_ITEM_TITLE_LENGTH) {
+    errors.title = `Keep the title to ${MAX_ITEM_TITLE_LENGTH} characters; this one has ${title.length}.`;
+  }
+  const markdown = input.markdown.normalize("NFC").replace(/\r\n?/g, "\n");
+  const limit = kind === "note" ? MAX_NOTE_BODY_LENGTH : MAX_MARKDOWN_LENGTH;
+  if (kind === "note" && !markdown.trim()) {
+    errors.markdown = "Write the note first.";
+  } else if (markdown.length > limit) {
+    errors.markdown = `Keep ${kind === "note" ? "a note" : "a reflection"} to ${limit.toLocaleString("en")} characters; this has ${markdown.length.toLocaleString("en")}.`;
+  }
+  const tags = parseTags(input.tags);
+  if (!tags.ok) errors.tags = tags.error;
+  if (!tags.ok || Object.keys(errors).length > 0) return { ok: false, errors };
+  return { ok: true, value: { title, markdown, tags: tags.tags } };
+}
+
+export type NotePost = Content & {
+  visibility: ItemVisibility;
+  // The verses it is anchored to; none for a note on nothing.
+  passages: VerseRange[];
+  translationId: string | null;
+};
+
+// A new note: its text, tags and visibility, and the verses selected in the
+// reader when it was written there (`v`, empty elsewhere).
+export function validateNotePost(
+  input: { markdown: string; tags: string; visibility: string; v?: string; translationId?: string },
+  translationIds: readonly string[],
+): Result<NotePost, ContentField> {
+  const content = validateContent(input, "note");
+  const errors: Errors<ContentField> = content.ok ? {} : { ...content.errors };
+  const passages = input.v?.trim() ? parsePassages(input.v) : [];
+  if (!passages) errors.passage = "Those verses could not be read; select them again.";
+  if (!content.ok || !passages) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      ...content.value,
+      visibility: isVisibility(input.visibility) ? input.visibility : "private",
+      passages,
+      translationId:
+        input.translationId && translationIds.includes(input.translationId)
+          ? input.translationId
+          : null,
+    },
+  };
 }

@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_ITEM_PASSAGES,
+  MAX_ITEM_TITLE_LENGTH,
+  MAX_MARKDOWN_LENGTH,
+  MAX_NOTE_BODY_LENGTH,
   MAX_NOTE_LENGTH,
   normalizeNote,
   parsePassages,
+  validateContent,
   validateHighlightEdit,
   validateNewHighlight,
+  validateNotePost,
 } from "./validate";
 
 const translations = ["bsb", "web", "kjv"];
@@ -109,5 +114,118 @@ describe("validateHighlightEdit", () => {
       value: { color: "pink", note: null },
     });
     expect(validateHighlightEdit({ color: "", note: "x" }).ok).toBe(false);
+  });
+});
+
+describe("validateContent", () => {
+  it("takes a reflection's title, Markdown and tags", () => {
+    expect(
+      validateContent(
+        { title: "  On \n grace ", markdown: "By grace.\r\n\r\n[[John 3:16]]\n", tags: "Grace, #hope" },
+        "reflection",
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        title: "On grace",
+        // As typed, but for the line endings: the editor is not fought over spaces.
+        markdown: "By grace.\n\n[[John 3:16]]\n",
+        tags: [
+          { slug: "grace", name: "Grace" },
+          { slug: "hope", name: "hope" },
+        ],
+      },
+    });
+  });
+
+  it("lets a reflection be empty and untitled: a draft just begun", () => {
+    expect(validateContent({ title: "", markdown: "", tags: "" }, "reflection")).toEqual({
+      ok: true,
+      value: { title: null, markdown: "", tags: [] },
+    });
+  });
+
+  it("says what is too long, and which tags are wrong", () => {
+    const result = validateContent(
+      {
+        title: "t".repeat(MAX_ITEM_TITLE_LENGTH + 1),
+        markdown: "m".repeat(MAX_MARKDOWN_LENGTH + 1),
+        tags: "x".repeat(41),
+      },
+      "reflection",
+    );
+    expect(result).toEqual({
+      ok: false,
+      errors: {
+        title: "Keep the title to 200 characters; this one has 201.",
+        markdown: "Keep a reflection to 100,000 characters; this has 100,001.",
+        tags: "Keep each tag to 40 characters.",
+      },
+    });
+  });
+
+  it("gives a note no title, and wants it short and not empty", () => {
+    expect(validateContent({ title: "Ignored", markdown: "Selah.", tags: "" }, "note")).toEqual({
+      ok: true,
+      value: { title: null, markdown: "Selah.", tags: [] },
+    });
+    expect(validateContent({ markdown: " \n ", tags: "" }, "note")).toEqual({
+      ok: false,
+      errors: { markdown: "Write the note first." },
+    });
+    expect(
+      validateContent({ markdown: "n".repeat(MAX_NOTE_BODY_LENGTH + 1), tags: "" }, "note"),
+    ).toEqual({
+      ok: false,
+      errors: { markdown: "Keep a note to 2,000 characters; this has 2,001." },
+    });
+  });
+});
+
+describe("validateNotePost", () => {
+  const note = { markdown: "Selah.", tags: "psalms", visibility: "public" };
+
+  it("anchors a note to the verses selected in the reader", () => {
+    expect(
+      validateNotePost({ ...note, v: "psalm-46.10-11", translationId: "web" }, translations),
+    ).toEqual({
+      ok: true,
+      value: {
+        title: null,
+        markdown: "Selah.",
+        tags: [{ slug: "psalms", name: "psalms" }],
+        visibility: "public",
+        passages: [{ start: 19046010, end: 19046011 }],
+        translationId: "web",
+      },
+    });
+  });
+
+  it("posts a note on no passage", () => {
+    const result = validateNotePost({ ...note, v: "", visibility: "unlisted" }, translations);
+    expect(result).toMatchObject({
+      ok: true,
+      value: { passages: [], translationId: null, visibility: "unlisted" },
+    });
+  });
+
+  it("is private unless it is told a visibility it knows", () => {
+    for (const visibility of ["", "everyone", "PUBLIC"]) {
+      expect(validateNotePost({ ...note, visibility }, translations)).toMatchObject({
+        ok: true,
+        value: { visibility: "private" },
+      });
+    }
+  });
+
+  it("refuses verses it cannot read rather than posting the note on nothing", () => {
+    expect(validateNotePost({ ...note, v: "john-99.1" }, translations)).toEqual({
+      ok: false,
+      errors: { passage: "Those verses could not be read; select them again." },
+    });
+    expect(validateNotePost({ ...note, markdown: "", v: "john-99.1" }, translations)).toMatchObject({
+      ok: false,
+      errors: { markdown: "Write the note first.", passage: expect.any(String) },
+    });
   });
 });
