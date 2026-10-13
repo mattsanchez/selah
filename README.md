@@ -56,6 +56,7 @@ It is safe to re-run: a second run reuses the cached files and changes nothing.
 If it stops with a checksum mismatch, the upstream text has changed since it was pinned.
 Review the change, update the pin, and run `pnpm fixture:bible` to rebuild the fixture from the new text.
 
+Each verse is stored as plain text with its headings, footnotes, paragraph breaks and red-letter spans beside it as structured JSON (the shapes are in `src/lib/bible/types.ts`).
 Verses are keyed by a canonical id, `BBCCCVVV` (John 3:16 is `43003016`), shared by every translation; `src/lib/bible` has the helpers and explains how numbering differences between translations are handled.
 
 ## License

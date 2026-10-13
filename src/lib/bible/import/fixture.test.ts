@@ -144,6 +144,21 @@ describe("Bible fixture", () => {
       for (const verse of records[id]) {
         expect(verse.text).not.toBe("");
         expect(verse.text).not.toMatch(/^\s|\s$| {2}|¶| \n|\n /);
+        for (const { offset, kind } of verse.breaks) {
+          // A line start is only ever the start of the verse; a paragraph
+          // inside a verse begins right after one of its line breaks.
+          if (kind === "line" || offset === 0) expect(offset).toBe(0);
+          else expect(verse.text[offset - 1]).toBe("\n");
+        }
+        expect(verse.breaks.filter((b) => b.offset === 0).length).toBeLessThanOrEqual(1);
+        let end = -1;
+        for (const span of verse.wordsOfJesus) {
+          expect(span.start).toBeGreaterThan(end);
+          expect(span.end).toBeGreaterThan(span.start);
+          expect(span.end).toBeLessThanOrEqual(verse.text.length);
+          expect(verse.text.slice(span.start, span.end)).not.toMatch(/^\s|\s$/);
+          end = span.end;
+        }
         const noted = [verse, ...verse.headings.filter((h) => h.footnotes)];
         for (const { text, footnotes = [] } of noted) {
           for (const note of footnotes) {
@@ -157,6 +172,109 @@ describe("Bible fixture", () => {
     }
     expect(fixture.kjv.get(19_003_003)?.footnotes).toEqual([
       { offset: expect.any(Number), text: "for: or, about" },
+    ]);
+  });
+
+  const paragraphs = (id: string, book: number) =>
+    inBook(id, book).flatMap((v) => v.breaks.filter((b) => b.kind === "paragraph"));
+  const redLetter = (id: string, book: number) =>
+    inBook(id, book).filter((v) => v.wordsOfJesus.length > 0);
+  const words = (id: string, verseId: number) => {
+    const verse = fixture[id].get(verseId)!;
+    return verse.wordsOfJesus.map(({ start, end }) => verse.text.slice(start, end));
+  };
+
+  it("has the BSB's paragraphs, between verses and inside them", () => {
+    // John 3: Nicodemus comes (1-2), then each turn of the conversation.
+    const starts = [1, 2, 3, 4, 5, 6].map(
+      (verse) => fixture.bsb.get(43_003_000 + verse)!.breaks,
+    );
+    expect(starts).toEqual([
+      [],
+      [],
+      [{ offset: 0, kind: "paragraph" }],
+      [{ offset: 0, kind: "paragraph" }],
+      [{ offset: 0, kind: "paragraph" }],
+      [],
+    ]);
+
+    const verse = fixture.bsb.get(43_001_038)!;
+    expect(verse.breaks).toEqual([
+      { offset: 0, kind: "paragraph" },
+      { offset: 67, kind: "paragraph" },
+    ]);
+    expect(verse.text.slice(0, 66)).toMatch(/He asked\.$/);
+    expect(verse.text.slice(67)).toMatch(/^They said to Him,/);
+
+    expect(paragraphs("bsb", 43)).toHaveLength(496);
+    expect(paragraphs("bsb", 45)).toHaveLength(189);
+  });
+
+  it("has stanzas and line starts in the Psalms", () => {
+    // BSB Psalm 2: stanzas at verses 4, 7 and 10; other verses start a line.
+    const kinds = Array.from({ length: 12 }, (_, i) =>
+      fixture.bsb
+        .get(19_002_001 + i)!
+        .breaks.filter((b) => b.offset === 0)
+        .map((b) => b.kind)
+        .join(),
+    );
+    expect(kinds).toEqual([
+      "", "line", "line", "paragraph", "line", "line",
+      "paragraph", "line", "line", "paragraph", "line", "line",
+    ]);
+    // The KJV sets each verse of a psalm as one line.
+    expect(fixture.kjv.get(19_023_002)?.breaks).toEqual([{ offset: 0, kind: "line" }]);
+    expect(paragraphs("web", 19).length).toBeGreaterThan(0);
+  });
+
+  it("has the KJV's paragraphs where it prints a pilcrow", () => {
+    expect(fixture.kjv.get(43_003_016)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
+    expect(fixture.kjv.get(43_003_017)?.breaks).toEqual([]);
+    expect(paragraphs("kjv", 43)).toHaveLength(70);
+    // The KJV's paragraph marks stop at Acts 20; the WEB source marks no
+    // paragraphs in prose at all.
+    expect(paragraphs("kjv", 45)).toEqual([]);
+    expect(paragraphs("web", 43)).toEqual([]);
+    expect(paragraphs("web", 45)).toEqual([]);
+  });
+
+  it("marks the words of Jesus in the WEB and KJV, and not in the BSB", () => {
+    expect(redLetter("web", 43)).toHaveLength(436);
+    expect(redLetter("kjv", 43)).toHaveLength(419);
+    for (const { id } of BIBLE_SOURCES) {
+      expect(redLetter(id, 19)).toEqual([]);
+      expect(redLetter(id, 45)).toEqual([]);
+    }
+    // The BSB source carries no red-letter markup.
+    expect(redLetter("bsb", 43)).toEqual([]);
+  });
+
+  it("marks part of a verse, a run of whole verses, and two spans in one verse", () => {
+    expect(words("web", 43_003_003)).toEqual([
+      "“Most certainly I tell you, unless one is born anew, he can’t see God’s Kingdom.”",
+    ]);
+    expect(words("kjv", 43_003_003)).toEqual([
+      "Verily, verily, I say unto thee, Except a man be born again, he cannot see the kingdom of God.",
+    ]);
+    expect(words("web", 43_003_002)).toEqual([]);
+
+    // John 3:10-12: the speech opens mid-verse and runs through whole verses.
+    for (const id of ["web", "kjv"]) {
+      expect(fixture[id].get(43_003_010)!.wordsOfJesus[0].start).toBeGreaterThan(0);
+      for (const verseId of [43_003_011, 43_003_012]) {
+        const verse = fixture[id].get(verseId)!;
+        expect(verse.wordsOfJesus).toEqual([{ start: 0, end: verse.text.length }]);
+      }
+    }
+
+    expect(words("web", 43_021_015)).toEqual([
+      "“Simon, son of Jonah, do you love me more than these?”",
+      "“Feed my lambs.”",
+    ]);
+    expect(words("kjv", 43_021_015)).toEqual([
+      "Simon, son of Jonas, lovest thou me more than these?",
+      "Feed my lambs.",
     ]);
   });
 });

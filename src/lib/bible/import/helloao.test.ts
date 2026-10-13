@@ -79,34 +79,144 @@ describe("flattenInline", () => {
     expect(footnotes).toEqual([{ offset: 7, text: "first note" }]);
   });
 
-  it("starts a new line after a note that ends a clause or changes the indent", () => {
+  it("keeps pieces at one indent on one line and starts a line when the indent changes", () => {
     expect(
       flattenInline(
-        [{ text: "with all my heart;", poem: 1 }, { noteId: 1 }, { text: "I will tell", poem: 1 }],
+        [
+          { text: "“There is no help for him in God.”", poem: 2 },
+          { noteId: 1 },
+          { text: "Selah.", poem: 2 },
+        ],
         notes,
       ).text,
-    ).toBe("with all my heart;\nI will tell");
+    ).toBe("“There is no help for him in God.” Selah.");
     expect(
       flattenInline(
         [{ text: "The LORD is my rock", poem: 1 }, { noteId: 1 }, { text: "and my fortress", poem: 2 }],
         notes,
       ).text,
     ).toBe("The LORD is my rock\nand my fortress");
+    expect(
+      flattenInline(["He said:", { text: "“Because you have done this,", poem: 1 }], notes).text,
+    ).toBe("He said:\n“Because you have done this,");
   });
 
-  it("honors explicit line breaks and ignores a trailing one", () => {
-    expect(
-      flattenInline(["Peace to you.", { lineBreak: true }, "Greet the friends."], notes).text,
-    ).toBe("Peace to you.\nGreet the friends.");
+  it("reads a line break in prose as a paragraph break inside the verse", () => {
+    const flat = flattenInline(
+      ["I hope to see you soon.", { lineBreak: true }, "Peace to you.", { lineBreak: true }, "Greet the friends."],
+      notes,
+    );
+    expect(flat.text).toBe("I hope to see you soon.\nPeace to you.\nGreet the friends.");
+    expect(flat.breaks).toEqual([
+      { offset: 24, kind: "paragraph" },
+      { offset: 38, kind: "paragraph" },
+    ]);
+    expect(flat.text.slice(24)).toMatch(/^Peace to you\./);
+    expect(flat.text.slice(38)).toBe("Greet the friends.");
+  });
+
+  it("reads a line break between two lines at the same indent as only a line break", () => {
+    const flat = flattenInline(
+      [
+        { text: "So God created man in His own image;", poem: 1 },
+        { text: "in the image of God He created him;", poem: 2 },
+        { lineBreak: true },
+        { text: "male and female He created them.", poem: 2 },
+      ],
+      notes,
+    );
+    expect(flat.text.split("\n")).toHaveLength(3);
+    expect(flat.breaks).toEqual([]);
+  });
+
+  it("reads a line break between prose and poetry, or two indents, as a stanza break", () => {
+    const flat = flattenInline(
+      [
+        "So the LORD God said to the serpent:",
+        { lineBreak: true },
+        { text: "“Because you have done this,", poem: 1 },
+        { text: "cursed are you.", poem: 2 },
+        { lineBreak: true },
+        { text: "On your belly will you go.”", poem: 1 },
+      ],
+      notes,
+    );
+    expect(flat.breaks).toEqual([
+      { offset: 37, kind: "paragraph" },
+      { offset: 82, kind: "paragraph" },
+    ]);
+    expect(flat.text.slice(82)).toBe("On your belly will you go.”");
+  });
+
+  it("reports line breaks at the edges and the indent it starts and ends at", () => {
     expect(
       flattenInline([{ text: "A line.", poem: 1 }, { noteId: 1 }, { lineBreak: true }], notes),
-    ).toEqual({ text: "A line.", footnotes: [{ offset: 7, text: "first note" }] });
+    ).toEqual({
+      text: "A line.",
+      footnotes: [{ offset: 7, text: "first note" }],
+      breaks: [],
+      wordsOfJesus: [],
+      firstLevel: 1,
+      lastLevel: 1,
+      leadingBreak: false,
+      trailingBreak: true,
+    });
+    expect(
+      flattenInline([{ lineBreak: true }, "Prose,", { text: "then poetry.", poem: 2 }], notes),
+    ).toMatchObject({ firstLevel: 0, lastLevel: 2, leadingBreak: true, trailingBreak: false });
+    expect(flattenInline([{ noteId: 1 }], notes).firstLevel).toBeUndefined();
   });
 
-  it("keeps the words of Jesus as plain text", () => {
+  it("marks the words of Jesus as a span of the plain text", () => {
+    const flat = flattenInline(
+      ["Jesus answered,", { text: "“Follow me.”", wordsOfJesus: true }, "And he rose."],
+      notes,
+    );
+    expect(flat.text).toBe("Jesus answered, “Follow me.” And he rose.");
+    expect(flat.wordsOfJesus).toEqual([{ start: 16, end: 28 }]);
+    expect(flat.text.slice(16, 28)).toBe("“Follow me.”");
+  });
+
+  it("covers a whole verse, and joins pieces a note or a line break splits", () => {
     expect(
-      flattenInline(["Jesus answered,", { text: "“Follow me.”", wordsOfJesus: true }], notes).text,
-    ).toBe("Jesus answered, “Follow me.”");
+      flattenInline([{ text: "Most certainly I tell you.", wordsOfJesus: true }], notes).wordsOfJesus,
+    ).toEqual([{ start: 0, end: 26 }]);
+
+    const noted = flattenInline(
+      [
+        { text: "“Unless one is born anew,", wordsOfJesus: true },
+        { noteId: 1 },
+        { text: "he can’t see God’s Kingdom.”", wordsOfJesus: true },
+      ],
+      notes,
+    );
+    expect(noted.wordsOfJesus).toEqual([{ start: 0, end: noted.text.length }]);
+    expect(noted.footnotes).toEqual([{ offset: 25, text: "first note" }]);
+
+    const poem = flattenInline(
+      [
+        { text: "‘You shall love the Lord your God", poem: 1, wordsOfJesus: true },
+        { text: "with all your heart.’", poem: 2, wordsOfJesus: true },
+      ],
+      notes,
+    );
+    expect(poem.text).toContain("\n");
+    expect(poem.wordsOfJesus).toEqual([{ start: 0, end: poem.text.length }]);
+  });
+
+  it("keeps separate spans when the narrator speaks in between", () => {
+    const flat = flattenInline(
+      [
+        { text: "“Simon,”", wordsOfJesus: true },
+        "he said,",
+        { text: "“do you love me?”", wordsOfJesus: true },
+      ],
+      notes,
+    );
+    expect(flat.wordsOfJesus.map(({ start, end }) => flat.text.slice(start, end))).toEqual([
+      "“Simon,”",
+      "“do you love me?”",
+    ]);
   });
 
   it("fails on a note the chapter does not define", () => {
@@ -122,7 +232,6 @@ describe("normalizeTranslation", () => {
         content: [
           { type: "heading", content: ["The Beginning"] },
           { type: "verse", number: 1, content: ["In the beginning was the Word."] },
-          { type: "line_break" },
           { type: "verse", number: 2, content: ["He was with God in the beginning."] },
           { type: "heading", content: ["The Witness of John"] },
           { type: "verse", number: 3, content: ["Through Him all things were made."] },
@@ -136,18 +245,24 @@ describe("normalizeTranslation", () => {
         text: "In the beginning was the Word.",
         headings: [{ kind: "section", text: "The Beginning" }],
         footnotes: [],
+        breaks: [],
+        wordsOfJesus: [],
       },
       {
         verseId: 43_001_002,
         text: "He was with God in the beginning.",
         headings: [],
         footnotes: [],
+        breaks: [],
+        wordsOfJesus: [],
       },
       {
         verseId: 43_001_003,
         text: "Through Him all things were made.",
         headings: [{ kind: "section", text: "The Witness of John" }],
         footnotes: [],
+        breaks: [],
+        wordsOfJesus: [],
       },
     ]);
   });
@@ -162,7 +277,6 @@ describe("normalizeTranslation", () => {
             type: "hebrew_subtitle",
             content: ["A Psalm of David, when he fled from his son Absalom.", { noteId: 1 }],
           },
-          { type: "line_break" },
           {
             type: "verse",
             number: 1,
@@ -189,6 +303,8 @@ describe("normalizeTranslation", () => {
           },
         ],
         footnotes: [],
+        breaks: [],
+        wordsOfJesus: [],
       },
     ]);
   });
@@ -302,11 +418,19 @@ describe("normalizeTranslation", () => {
     expect(verses.map((verse) => verse.verseId)).toEqual([43_005_003, 43_005_005]);
   });
 
-  it("cleans up the KJV's note prefixes and paragraph marks when asked", () => {
+  it("cleans up the KJV's note prefixes and turns its pilcrows into paragraphs when asked", () => {
     const source = translation("JHN", {
       number: 3,
       content: [
-        { type: "verse", number: 16, content: ["¶ For God so loved", { noteId: 1 }, "the world."] },
+        {
+          type: "verse",
+          number: 16,
+          content: [
+            { text: "¶ For God so loved", wordsOfJesus: true },
+            { noteId: 1 },
+            { text: "the world.", wordsOfJesus: true },
+          ],
+        },
       ],
       footnotes: [{ noteId: 1, text: "3.16 loved: Gr. agapao" }],
     });
@@ -314,7 +438,7 @@ describe("normalizeTranslation", () => {
       normalizeTranslation(source, {
         translationId: "kjv",
         stripFootnoteOrigin: true,
-        stripParagraphMarks: true,
+        pilcrowParagraphs: true,
       }),
     ).toEqual([
       {
@@ -322,11 +446,15 @@ describe("normalizeTranslation", () => {
         text: "For God so loved the world.",
         headings: [],
         footnotes: [{ offset: 16, text: "loved: Gr. agapao" }],
+        breaks: [{ offset: 0, kind: "paragraph" }],
+        wordsOfJesus: [{ start: 0, end: 27 }],
       },
     ]);
     expect(normalizeTranslation(source, { translationId: "kjv" })[0]).toMatchObject({
       text: "¶ For God so loved the world.",
       footnotes: [{ offset: 18, text: "3.16 loved: Gr. agapao" }],
+      breaks: [],
+      wordsOfJesus: [{ start: 0, end: 29 }],
     });
   });
 
@@ -369,5 +497,143 @@ describe("normalizeTranslation", () => {
         translationId: "bsb",
       }),
     ).toThrow("already used");
+  });
+
+  const startsOf = (verses: { breaks: unknown[] }[]) => verses.map((verse) => verse.breaks);
+  const paragraph = [{ offset: 0, kind: "paragraph" }];
+  const line = [{ offset: 0, kind: "line" }];
+
+  it("starts a paragraph at a line break between prose verses, mid-chapter", () => {
+    const verses = normalizeTranslation(
+      translation("JHN", {
+        number: 3,
+        content: [
+          { type: "heading", content: ["Jesus and Nicodemus"] },
+          { type: "verse", number: 1, content: ["Now there was a man of the Pharisees."] },
+          { type: "verse", number: 2, content: ["He came to Jesus at night."] },
+          { type: "line_break" },
+          { type: "verse", number: 3, content: ["Jesus replied."] },
+          { type: "verse", number: 4, content: ["Nicodemus asked."] },
+          { type: "heading", content: ["John's Testimony"] },
+          { type: "line_break" },
+          { type: "verse", number: 5, content: ["After this."] },
+          { type: "verse", number: 6, content: ["Flesh is born of flesh.", { lineBreak: true }] },
+          { type: "verse", number: 7, content: ["Do not be amazed."] },
+          { type: "verse", number: 8, content: [{ lineBreak: true }, "The wind blows."] },
+        ],
+      }),
+      { translationId: "bsb" },
+    );
+    expect(startsOf(verses)).toEqual([
+      // The chapter's first verse and an unmarked verse run on: no break stored.
+      [], [], paragraph, [],
+      // After a heading, with the source's own line break.
+      paragraph, [],
+      // A line break at the end of one verse or the start of the next.
+      paragraph, paragraph,
+    ]);
+  });
+
+  it("keeps a paragraph break that falls inside a verse", () => {
+    const [verse] = normalizeTranslation(
+      translation("3JN", {
+        number: 1,
+        content: [
+          {
+            type: "verse",
+            number: 14,
+            content: ["I hope to see you soon.", { noteId: 1 }, { lineBreak: true }, "Peace to you."],
+          },
+        ],
+        footnotes: [{ noteId: 1, text: "Literally mouth to mouth" }],
+      }),
+      { translationId: "bsb" },
+    );
+    expect(verse.text).toBe("I hope to see you soon.\nPeace to you.");
+    expect(verse.breaks).toEqual([{ offset: 24, kind: "paragraph" }]);
+    expect(verse.footnotes).toEqual([{ offset: 23, text: "Literally mouth to mouth" }]);
+  });
+
+  it("tells a stanza break from a new line of poetry", () => {
+    const couplet = (number: number, ...levels: number[]) => ({
+      type: "verse" as const,
+      number,
+      content: levels.map((poem, i) => ({ text: `Line ${number}.${i}`, poem })),
+    });
+    const verses = normalizeTranslation(
+      translation("PSA", {
+        number: 2,
+        content: [
+          { type: "heading", content: ["The Triumphant Messiah"] },
+          couplet(1, 1, 2),
+          couplet(2, 1, 2),
+          { type: "line_break" },
+          couplet(3, 1, 2),
+          couplet(4, 2),
+          { type: "line_break" },
+          couplet(5, 2),
+          { type: "verse", number: 6, content: ["Then prose resumes."] },
+          { type: "verse", number: 7, content: ["And runs on."] },
+        ],
+      }),
+      { translationId: "bsb" },
+    );
+    expect(startsOf(verses)).toEqual([
+      [],
+      // The indent changes from 2 to 1: a new line of the same stanza.
+      line,
+      // A line break, then a change of indent: a new stanza.
+      paragraph,
+      // Verse 4 continues verse 3's last line: same indent, no break.
+      [],
+      // A line break between two lines at one indent only separates them.
+      line,
+      // Prose after poetry starts a line; prose after prose runs on.
+      line,
+      [],
+    ]);
+  });
+
+  it("gives each one-line verse of a KJV psalm its own line", () => {
+    const verses = normalizeTranslation(
+      translation("PSA", {
+        number: 117,
+        content: [
+          { type: "verse", number: 1, content: [{ text: "O praise the LORD.", poem: 1 }, { lineBreak: true }] },
+          { type: "verse", number: 2, content: [{ text: "Praise ye the LORD.", poem: 1 }, { lineBreak: true }] },
+        ],
+      }),
+      { translationId: "kjv", pilcrowParagraphs: true },
+    );
+    expect(startsOf(verses)).toEqual([[], line]);
+  });
+
+  it("carries red-letter spans verse by verse through a speech", () => {
+    const verses = normalizeTranslation(
+      translation("JHN", {
+        number: 3,
+        content: [
+          {
+            type: "verse",
+            number: 10,
+            content: ["Jesus answered him,", { text: "“Are you the teacher of Israel?", wordsOfJesus: true }],
+          },
+          { type: "verse", number: 11, content: [{ text: "Most certainly I tell you.", wordsOfJesus: true }] },
+          { type: "verse", number: 12, content: [{ text: "If I told you earthly things.”", wordsOfJesus: true }] },
+          { type: "verse", number: 13, content: ["No one has ascended into heaven."] },
+        ],
+      }),
+      { translationId: "web" },
+    );
+    expect(verses.map((verse) => verse.wordsOfJesus)).toEqual([
+      [{ start: 20, end: 51 }],
+      [{ start: 0, end: 26 }],
+      [{ start: 0, end: 30 }],
+      [],
+    ]);
+    expect(verses[0].text.slice(20, 51)).toBe("“Are you the teacher of Israel?");
+    for (const verse of verses.slice(1, 3)) {
+      expect(verse.wordsOfJesus[0].end).toBe(verse.text.length);
+    }
   });
 });

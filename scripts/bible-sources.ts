@@ -29,7 +29,7 @@ export async function fetchVerses(
   return normalizeTranslation(translation, {
     translationId: source.id,
     stripFootnoteOrigin: source.stripFootnoteOrigin,
-    stripParagraphMarks: source.stripParagraphMarks,
+    pilcrowParagraphs: source.pilcrowParagraphs,
     books,
   });
 }

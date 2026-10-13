@@ -22,9 +22,15 @@ try {
         v.headings.reduce((m, h) => m + (h.footnotes?.length ?? 0), 0),
       0,
     );
+    const paragraphs = verses.reduce(
+      (n, v) => n + v.breaks.filter((b) => b.kind === "paragraph").length,
+      0,
+    );
+    const redLetter = verses.filter((v) => v.wordsOfJesus.length > 0).length;
     const count = await countVerses(db, source.id);
     console.log(
-      `${source.abbrev}: ${count} verses, ${headings} headings, ${footnotes} footnotes loaded`,
+      `${source.abbrev}: ${count} verses, ${headings} headings, ${footnotes} footnotes, ` +
+        `${paragraphs} paragraph starts, ${redLetter} red-letter verses loaded`,
     );
   }
 } finally {

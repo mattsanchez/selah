@@ -56,6 +56,22 @@ describe("contentSha256", () => {
     renumbered.books[0].chapters[0].chapter.number = 12;
     expect(contentSha256(renumbered)).not.toBe(source.contentSha256);
   });
+
+  it("covers the paragraph and red-letter markup the import reads", () => {
+    const edit = (change: (content: unknown[]) => void) => {
+      const copy = build("Jesus wept.");
+      change(copy.books[0].chapters[0].chapter.content);
+      return contentSha256(copy as HelloaoTranslation);
+    };
+    const verse = (content: unknown[]) => ({ type: "verse", number: 35, content });
+    const variants = [
+      edit((content) => content.unshift({ type: "line_break" })),
+      edit((content) => (content[0] = verse(["Jesus wept.", { lineBreak: true }]))),
+      edit((content) => (content[0] = verse([{ text: "Jesus wept.", wordsOfJesus: true }]))),
+      edit((content) => (content[0] = verse([{ text: "Jesus wept.", poem: 1 }]))),
+    ];
+    expect(new Set([source.contentSha256, ...variants]).size).toBe(5);
+  });
 });
 
 describe("fetchSource", () => {

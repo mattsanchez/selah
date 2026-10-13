@@ -4,9 +4,9 @@ import type { VerseRecord } from "../types";
 
 // The committed test fixture: John, Psalms and Romans of each translation,
 // one file per translation, written by `pnpm fixture:bible` from the pinned
-// sources. Empty `headings` and `footnotes` are left out of the file.
+// sources. Empty arrays are left out of the file.
 type FixtureVerse = Pick<VerseRecord, "verseId" | "text"> &
-  Partial<Pick<VerseRecord, "headings" | "footnotes">>;
+  Partial<Omit<VerseRecord, "verseId" | "text">>;
 
 type FixtureFile = {
   translation: string;
@@ -24,13 +24,16 @@ export function serializeFixture(
   sourceSha256: string,
   verses: readonly VerseRecord[],
 ): string {
-  const lines = verses.map(({ verseId, text, headings, footnotes }) =>
-    JSON.stringify({
-      verseId,
-      text,
-      ...(headings.length > 0 && { headings }),
-      ...(footnotes.length > 0 && { footnotes }),
-    }),
+  const lines = verses.map(
+    ({ verseId, text, headings, footnotes, breaks, wordsOfJesus }) =>
+      JSON.stringify({
+        verseId,
+        text,
+        ...(headings.length > 0 && { headings }),
+        ...(footnotes.length > 0 && { footnotes }),
+        ...(breaks.length > 0 && { breaks }),
+        ...(wordsOfJesus.length > 0 && { wordsOfJesus }),
+      }),
   );
   return (
     `{"translation":${JSON.stringify(translationId)},"sourceSha256":${JSON.stringify(sourceSha256)},"verses":[\n` +
@@ -47,5 +50,7 @@ export async function readFixture(translationId: string): Promise<VerseRecord[]>
     text: verse.text,
     headings: verse.headings ?? [],
     footnotes: verse.footnotes ?? [],
+    breaks: verse.breaks ?? [],
+    wordsOfJesus: verse.wordsOfJesus ?? [],
   }));
 }

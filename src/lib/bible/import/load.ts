@@ -50,6 +50,8 @@ export async function loadTranslation(
             text: sql`excluded.text`,
             headings: sql`excluded.headings`,
             footnotes: sql`excluded.footnotes`,
+            breaks: sql`excluded.breaks`,
+            wordsOfJesus: sql`excluded.words_of_jesus`,
           },
         });
     }

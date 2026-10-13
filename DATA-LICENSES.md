@@ -59,8 +59,8 @@ Each file is pinned by a checksum in `src/lib/bible/import/sources.ts`, and the 
 
 The words of each translation are stored as published. The import changes only the following:
 
-- Formatting is reduced to plain text, with a line break between lines of poetry. Paragraph breaks and the marking of the words of Jesus are not kept.
-- KJV: the paragraph mark (¶) at the start of a verse is removed, and so is the chapter-and-verse prefix of each footnote ("3.3 for: or, about" becomes "for: or, about").
+- Formatting is reduced to plain text, with a line break between lines. Paragraph and stanza breaks, and the marking of the words of Jesus, are stored beside the text as positions in it, where the source has them. The indent of each line of poetry is not kept.
+- KJV: the paragraph mark (¶) at the start of a verse is taken out of the text and stored as a paragraph break. Also removed is the chapter-and-verse prefix of each footnote ("3.3 for: or, about" becomes "for: or, about").
 - WEB: the closing doxology of Romans, which the WEB prints as Romans 14:24-26, is stored under Romans 16:25-27, where the KJV and BSB have it, so that one verse id means the same words in every translation. The WEB's footnotes there explain the two placements.
 - WEB: four verses the WEB leaves empty except for a footnote (Luke 17:36, Acts 8:37, Acts 15:34 and Acts 24:7), and its empty Romans 16:25, are not stored as verses; each footnote is kept on the verse before.
 

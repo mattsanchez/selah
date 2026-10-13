@@ -19,7 +19,7 @@ export type BibleSource = {
   downloadUrl: string;
   contentSha256: string;
   stripFootnoteOrigin?: boolean;
-  stripParagraphMarks?: boolean;
+  pilcrowParagraphs?: boolean;
 };
 
 export const BIBLE_SOURCES: readonly BibleSource[] = [
@@ -56,7 +56,7 @@ export const BIBLE_SOURCES: readonly BibleSource[] = [
     downloadUrl: "https://bible.helloao.org/api/eng_kjv/complete.json",
     contentSha256: "bd95ed6510371f7fb59fd4b6beeae5804730344fef4e2307912a8bba3d73bf32",
     stripFootnoteOrigin: true,
-    stripParagraphMarks: true,
+    pilcrowParagraphs: true,
   },
 ];
 
