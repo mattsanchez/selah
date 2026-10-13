@@ -51,6 +51,9 @@ export function formattingSha256(books: readonly UsfmBook[]): string {
 }
 
 export class ChecksumError extends Error {
+  // The file that no longer matches its pin.
+  readonly url: string;
+
   constructor(
     source: BibleSource,
     actual: string,
@@ -65,7 +68,59 @@ export class ChecksumError extends Error {
         "then update the pin in src/lib/bible/import/sources.ts.",
     );
     this.name = "ChecksumError";
+    this.url = file.downloadUrl;
   }
+}
+
+// The file could not be fetched: the host was unreachable or answered with an
+// error. Unlike a ChecksumError, trying again later can succeed.
+export class DownloadError extends Error {
+  constructor(
+    readonly url: string,
+    readonly reason: string,
+    options?: ErrorOptions,
+  ) {
+    super(`Could not download ${url}: ${reason}`, options);
+    this.name = "DownloadError";
+  }
+}
+
+async function downloadFrom(url: string, fetchImpl: typeof fetch): Promise<Uint8Array> {
+  let response: Response;
+  try {
+    response = await fetchImpl(url);
+  } catch (error) {
+    // Node's fetch says only "fetch failed"; the cause names the real problem.
+    const cause = error instanceof Error ? error.cause : undefined;
+    const detail =
+      cause instanceof Error ? cause.message : error instanceof Error ? error.message : String(error);
+    throw new DownloadError(url, `the host could not be reached: ${detail}`, { cause: error });
+  }
+  if (!response.ok) throw new DownloadError(url, `HTTP ${response.status}`);
+  try {
+    return new Uint8Array(await response.arrayBuffer());
+  } catch (error) {
+    throw new DownloadError(url, "the download was cut short", { cause: error });
+  }
+}
+
+// Fetches a pinned file from the first of `urls` that answers. Today each
+// file has one URL, its publisher's; a mirror would be a second entry, tried
+// in the order given. Whichever copy arrives is checked against the same pin
+// by the caller. Throws the last URL's DownloadError when none answers.
+export async function download(
+  urls: readonly string[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<Uint8Array> {
+  let failure: unknown = new Error("No download URL given");
+  for (const url of urls) {
+    try {
+      return await downloadFrom(url, fetchImpl);
+    } catch (error) {
+      failure = error;
+    }
+  }
+  throw failure;
 }
 
 function parse(bytes: Uint8Array): HelloaoTranslation | undefined {
@@ -93,13 +148,7 @@ export async function fetchSource(
     return { translation: cached, cached: true };
   }
 
-  const response = await fetchImpl(source.downloadUrl);
-  if (!response.ok) {
-    throw new Error(
-      `Could not download ${source.downloadUrl}: HTTP ${response.status}`,
-    );
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const bytes = await download([source.downloadUrl], fetchImpl);
   const translation = parse(bytes);
   if (!translation) {
     throw new Error(`${source.downloadUrl} is not a Bible translation in JSON`);
@@ -146,11 +195,7 @@ export async function fetchFormatting(
     return { books: cached, cached: true };
   }
 
-  const response = await fetchImpl(downloadUrl);
-  if (!response.ok) {
-    throw new Error(`Could not download ${downloadUrl}: HTTP ${response.status}`);
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  const bytes = await download([downloadUrl], fetchImpl);
   const books = parseUsfmArchive(bytes);
   if (!books) throw new Error(`${downloadUrl} is not a zip archive of USFM files`);
   const actual = formattingSha256(books);

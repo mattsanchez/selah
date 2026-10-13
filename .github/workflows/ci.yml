@@ -28,6 +28,13 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  image:
+    name: Docker image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build app
+
   e2e:
     name: Fresh-clone smoke test
     runs-on: ubuntu-latest

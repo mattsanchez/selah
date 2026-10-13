@@ -1,0 +1,24 @@
+# Keep the build context to the source: nothing built, downloaded or secret.
+.git
+.github
+node_modules
+.next
+dist
+out
+coverage
+.cache
+.data
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+blob-report
+playwright
+e2e
+docs
+*.log
+.DS_Store
+AGENTS.md
+Dockerfile
+docker-compose.yml

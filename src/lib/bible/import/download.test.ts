@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ChecksumError,
   contentSha256,
+  download,
+  DownloadError,
   fetchFormatting,
   fetchSource,
   formattingSha256,
@@ -120,6 +122,18 @@ describe("fetchSource", () => {
       { cacheDir, fetchImpl },
     );
     expect(result).toEqual({ translation: revised, cached: false });
+  });
+
+  it("reports an unreachable host as a download error naming the file", async () => {
+    const offline = vi.fn<typeof fetch>(async () => {
+      throw new TypeError("fetch failed", { cause: new Error("getaddrinfo ENOTFOUND example.test") });
+    });
+    const failure = await fetchSource(source, { cacheDir, fetchImpl: offline }).catch((e) => e);
+    expect(failure).toBeInstanceOf(DownloadError);
+    expect(failure.url).toBe(source.downloadUrl);
+    expect(failure.message).toBe(
+      `Could not download ${source.downloadUrl}: the host could not be reached: getaddrinfo ENOTFOUND example.test`,
+    );
   });
 
   it("reports an HTTP failure", async () => {
@@ -246,5 +260,34 @@ describe("BIBLE_SOURCES", () => {
       expect(s.attribution).not.toBe("");
       expect(s.abbrev).toBe(s.id.toUpperCase());
     }
+  });
+});
+
+describe("download", () => {
+  const bytes = new TextEncoder().encode("the file");
+  const serve = (working: string) =>
+    vi.fn<typeof fetch>(async (input) => {
+      if (String(input) !== working) throw new TypeError("fetch failed");
+      return new Response(bytes);
+    });
+
+  it("takes the file from the first URL that answers, in the order given", async () => {
+    const urls = ["https://mirror.test/file", "https://upstream.test/file"];
+
+    const mirrorUp = serve(urls[0]);
+    expect(await download(urls, mirrorUp)).toEqual(bytes);
+    expect(mirrorUp).toHaveBeenCalledTimes(1);
+
+    const mirrorDown = serve(urls[1]);
+    expect(await download(urls, mirrorDown)).toEqual(bytes);
+    expect(mirrorDown.mock.calls.map(([input]) => input)).toEqual(urls);
+  });
+
+  it("reports the last URL when none answers", async () => {
+    const failure = await download(["https://a.test/x", "https://b.test/x"], serve("nowhere")).catch(
+      (error) => error,
+    );
+    expect(failure).toBeInstanceOf(DownloadError);
+    expect(failure.url).toBe("https://b.test/x");
   });
 });
