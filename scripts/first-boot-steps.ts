@@ -6,7 +6,19 @@ import { BIBLE_SOURCES, type BibleSource } from "../src/lib/bible/import/sources
 import { dataDir } from "../src/lib/env";
 import { describeImportFailure, withDownloadRetries } from "../src/lib/first-boot/imports";
 import type { BootStep } from "../src/lib/first-boot/runner";
+import {
+  countCommentary,
+  countCrossReferences,
+  loadCommentary,
+  loadCrossReferences,
+} from "../src/lib/study/import/load";
+import {
+  COMMENTARY_SOURCES,
+  CROSS_REFERENCES,
+  type CommentarySource,
+} from "../src/lib/study/sources";
 import { fetchVerses } from "./bible-sources";
+import { fetchCommentaryRecords, fetchCrossReferenceRows } from "./study-sources";
 
 // The steps of first boot, in the order they run. Migrations have already
 // been applied when the first one starts. To add a step, append an
@@ -61,12 +73,48 @@ function bibleStep(db: Db, source: BibleSource): BootStep {
   });
 }
 
+// OpenBible.info rebuilds its archive daily with its readers' latest votes, so
+// this is the step most likely to stop matching its pin. It is on its own so
+// that nothing else waits on it; the study panel then has no cross references.
+function crossReferencesStep(db: Db): BootStep {
+  return importStep({
+    id: `study:${CROSS_REFERENCES.id}`,
+    title: "Cross references (OpenBible.info)",
+    version: CROSS_REFERENCES.contentSha256,
+    what: "The cross references from OpenBible.info",
+    load: async ({ cacheDir, log }) => {
+      const rows = await fetchCrossReferenceRows({ cacheDir: path.join(cacheDir, "study"), log });
+      await loadCrossReferences(db, rows, { replace: true });
+      log(`${CROSS_REFERENCES.name}: ${await countCrossReferences(db)} cross references loaded`);
+    },
+  });
+}
+
+function commentaryStep(db: Db, source: CommentarySource): BootStep {
+  return importStep({
+    id: `study:${source.id}`,
+    title: source.name,
+    version: source.contentSha256,
+    what: source.name,
+    load: async ({ cacheDir, log }) => {
+      const records = await fetchCommentaryRecords(source, {
+        cacheDir: path.join(cacheDir, "study"),
+        log,
+      });
+      await loadCommentary(db, source, records, { replace: true });
+      log(`${source.name}: ${await countCommentary(db, source.id)} entries loaded`);
+    },
+  });
+}
+
 // Each step is independent: one that fails is recorded and the rest still
-// run. The Bible translations come first because the reader needs them.
+// run. The Bible translations come first because the reader needs them; the
+// study sources follow, one step each.
 export function firstBootSteps(db: Db): BootStep[] {
   return [
     ...BIBLE_SOURCES.map((source) => bibleStep(db, source)),
-    // Later imports go here, one importStep({ ... }) each: cross references,
-    // commentary and study notes (`pnpm import:study`) once they are on main.
+    crossReferencesStep(db),
+    ...COMMENTARY_SOURCES.map((source) => commentaryStep(db, source)),
+    // Later imports go here, one importStep({ ... }) each.
   ];
 }

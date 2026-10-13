@@ -15,8 +15,8 @@ One install serves one writer. It is two containers, the app and Postgres, run b
 ### Requirements
 
 - Docker with Compose v2 (`docker compose version`), on Linux, macOS or Windows.
-- About 1 GB of free memory and 1 GB of disk: the image is about 400 MB, the database with the three translations about 35 MB, and the downloaded source files about 25 MB.
-- Outbound HTTPS on first boot, to the three hosts listed under [what first boot does](#what-first-boot-does).
+- About 1 GB of free memory and 1 GB of disk: the image is about 400 MB, the database with everything loaded about 150 MB, and the downloaded source files about 60 MB.
+- Outbound HTTPS on first boot, to the six hosts listed under [what first boot does](#what-first-boot-does).
 
 ### Start it
 
@@ -45,24 +45,39 @@ Afterwards, sign in at `/sign-in` and change any of it at `/settings`.
 
 1. Waits for Postgres and applies database migrations. This happens on every start, so an upgrade migrates itself.
 2. Starts the site. From here on it is reachable, and until there is an owner every page leads to the setup screen, which shows what is loading.
-3. Downloads the three translations (BSB, WEB, KJV), checks each file against the checksum this version of Selah was released with, and loads them: about 93,000 verses. On a fast connection this takes under a minute (11 seconds on the machine it was last measured on); allow a few minutes on a slow one. The setup form appears when it is done.
+3. Downloads each source in the table below, checks each file against the checksum this version of Selah was released with, and loads it. Each source is its own step, in this order, and a step that fails does not stop the others. On a fast connection all of it takes under a minute; allow several minutes on a slow one, since the downloads total about 60 MB. The setup form appears when every step has finished or failed.
 
-The downloads come from these hosts, which the machine must be able to reach over HTTPS on first boot:
+| Step | Loads | Downloaded from |
+| :--- | :--- | :--- |
+| Berean Standard Bible (BSB) | 31,086 verses, with red-letter text | `bible.helloao.org`, `bereanbible.com` |
+| World English Bible (WEB) | 31,098 verses, with paragraph breaks | `bible.helloao.org`, `ebible.org` |
+| King James Version (KJV) | 31,102 verses | `bible.helloao.org` |
+| Cross references (OpenBible.info) | About 345,000 cross references with readers' votes | `a.openbible.info` |
+| Matthew Henry's Commentary | 5,378 entries | `crosswire.org` |
+| Jamieson, Fausset and Brown's Commentary | 16,943 entries | `crosswire.org` |
+| Adam Clarke's Commentary | 22,077 entries | `crosswire.org` |
+| Tyndale Open Study Notes | 16,913 notes | `tyndaleopenresources.com` |
+
+So the machine must be able to reach these six hosts over HTTPS on first boot:
 
 | Host | What |
 | :--- | :--- |
 | `bible.helloao.org` | The text, headings and footnotes of all three translations |
 | `bereanbible.com` | Red-letter markup for the BSB |
 | `ebible.org` | Paragraph breaks for the WEB |
+| `a.openbible.info` | Cross references |
+| `crosswire.org` | The three commentaries |
+| `tyndaleopenresources.com` | Tyndale Open Study Notes |
 
 After first boot Selah needs no outbound access (until you turn on AI or email).
-No Bible text is in the image or the repository; [DATA-LICENSES.md](DATA-LICENSES.md) lists each source and its license.
+No Bible text, cross references or commentary is in the image, and the repository holds only the small test fixture; [DATA-LICENSES.md](DATA-LICENSES.md) lists each source and its license.
 
 If a download fails, the others still load, and the setup screen (and later the Settings page) says which source failed and why.
-Setup can go ahead with whatever did load.
+Setup can go ahead as long as at least one translation loaded.
+A missing study source only leaves its section of the reader's study panel empty ("No cross references for this verse.").
 
 - **A host could not be reached**: each download is tried three times. Fix the connection and run `docker compose restart app`; first boot continues with what is missing, and what is already loaded is not downloaded or loaded again.
-- **A file has changed** ("has changed since this version of Selah was released"): the publisher changed a file after it was pinned. Selah will not load text it has not been checked against, so retrying does not help: upgrade Selah, or [open an issue](https://github.com/mattsanchez/selah/issues).
+- **A file has changed** ("has changed since this version of Selah was released"): the publisher changed a file after it was pinned. Selah will not load text it has not been checked against, so retrying does not help: upgrade Selah, or [open an issue](https://github.com/mattsanchez/selah/issues). The cross references are the likeliest to do this: OpenBible.info rebuilds its file daily with its readers' latest votes.
 - **"Loading stopped before it finished"**: the app was stopped mid-import. `docker compose restart app` picks it up.
 
 ### Who can set up a new install

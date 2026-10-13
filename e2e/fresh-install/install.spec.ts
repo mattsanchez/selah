@@ -34,7 +34,13 @@ test("a new install leads to setup, and the reader then uses the chosen default"
   await page.goto("/");
   await expect(page).toHaveURL("/setup");
   await expect(page.getByRole("heading", { level: 1, name: "Set up Selah" })).toBeVisible();
-  for (const path of ["/read/john-3.16", "/sign-in", "/settings"]) {
+  for (const path of [
+    "/read/john-3.16",
+    "/read/john-3.16-21?v=john-3.16",
+    "/search?q=living+water",
+    "/sign-in",
+    "/settings",
+  ]) {
     await page.goto(path);
     await expect(page).toHaveURL("/setup");
   }
@@ -100,6 +106,19 @@ test("setup cannot be run a second time", async ({ page }) => {
   await page.goto("/read/john-3.16");
   await expect(page.locator("[data-passage='web']")).toBeVisible();
   await expect(ownerBar(page)).toHaveCount(0);
+
+  // This install has the Bible but no study sources, as when their downloads
+  // failed at first boot: the study panel opens and says so, section by section.
+  await page.goto("/read/john-3.16?v=john-3.16");
+  const panel = page.getByRole("complementary", { name: "John 3:16" });
+  await expect(panel).toContainText("No cross references for this verse.");
+  await expect(panel).toContainText("No commentary on this verse.");
+  await expect(panel).toContainText("No study notes on this verse.");
+  // The search box works here too.
+  await page.goto("/search?q=loved+the+world");
+  await expect(page.locator("[data-result='43003016']").first()).toContainText(
+    "For God so loved the world",
+  );
 });
 
 test("the owner signs out and in, and settings need the owner", async ({ page }) => {

@@ -46,6 +46,24 @@ test.describe("the signed-in owner", () => {
     }
   });
 
+  test("studies a verse and searches with the owner bar still in reach", async ({ page }) => {
+    // The study panel is fixed over the right of a wide page; the bar's
+    // links must not end up underneath it.
+    await page.goto("/read/john-3.16-21?v=john-3.16");
+    await expect(page.getByRole("complementary", { name: "John 3:16" })).toBeVisible();
+    const bar = page.getByRole("navigation", { name: "Owner" });
+    await expect(bar).toContainText(`Signed in as ${TEST_OWNER.email}`);
+    await expect(bar.getByRole("button", { name: "Sign out" })).toBeVisible();
+
+    await page.goto("/search?q=living+water");
+    await expect(bar).toContainText(`Signed in as ${TEST_OWNER.email}`);
+
+    await page.goto("/read/john-3.16-21?v=john-3.16");
+    // A click fails if the panel covers the link.
+    await bar.getByRole("link", { name: "Settings" }).click();
+    await expect(page).toHaveURL("/settings");
+  });
+
   test("opens settings and saves an API key that is never shown again", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Settings" }).click();

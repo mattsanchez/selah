@@ -23,8 +23,10 @@ export async function OwnerBar() {
       aria-label="Owner"
       className="border-b border-stone-200 bg-stone-100 text-sm dark:border-stone-800 dark:bg-stone-900"
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-x-5 gap-y-1 px-6 py-2">
-        <span className="mr-auto text-stone-600 dark:text-stone-400">
+      {/* Kept to the left: on a wide screen the reader's study panel is fixed
+          over the right-hand side of the page, this bar included. */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-6 py-2">
+        <span className="text-stone-600 dark:text-stone-400">
           Signed in as {owner.email}
         </span>
         <Link href="/settings" className={link}>

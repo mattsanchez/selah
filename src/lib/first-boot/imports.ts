@@ -1,4 +1,5 @@
 import { ChecksumError, DownloadError } from "@/lib/bible/import/download";
+import { StudyChecksumError } from "@/lib/study/import/download";
 
 import { FirstBootError, RETRY_HINT } from "./runner";
 
@@ -13,7 +14,7 @@ const RETRY_DELAY_MS = 5000;
 
 // Turns an import failure into a message for the person installing Selah.
 export function describeImportFailure(what: string, error: unknown): FirstBootError {
-  if (error instanceof ChecksumError) {
+  if (error instanceof ChecksumError || error instanceof StudyChecksumError) {
     const host = new URL(error.url).host;
     return new FirstBootError(
       `${what} was not loaded: the file at ${error.url} has changed since this version of Selah was released. ` +

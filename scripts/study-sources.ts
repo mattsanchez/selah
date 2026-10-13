@@ -31,11 +31,15 @@ export function selectStudySources(args: readonly string[]): {
 const verified = (source: StudyDownload, cached: boolean) =>
   `${source.name}: ${cached ? "cached" : "downloaded"}, checksum ${source.contentSha256.slice(0, 12)}… verified`;
 
-export async function fetchCrossReferenceRows() {
-  const { rows, skipped, cached } = await fetchCrossReferences(CROSS_REFERENCES);
-  console.log(verified(CROSS_REFERENCES, cached));
+// Where downloads are kept and where progress is reported; first boot keeps
+// them in the data directory.
+type StudyFetchOptions = { cacheDir?: string; log?: (message: string) => void };
+
+export async function fetchCrossReferenceRows({ log = console.log, ...cache }: StudyFetchOptions = {}) {
+  const { rows, skipped, cached } = await fetchCrossReferences(CROSS_REFERENCES, cache);
+  log(verified(CROSS_REFERENCES, cached));
   if (skipped.length > 0) {
-    console.log(
+    log(
       `${CROSS_REFERENCES.name}: ${skipped.length} lines skipped: ` +
         skipped.map(({ text, reason }) => `"${text}" (${reason})`).join(", "),
     );
@@ -43,11 +47,14 @@ export async function fetchCrossReferenceRows() {
   return rows;
 }
 
-export async function fetchCommentaryRecords(source: CommentarySource) {
-  const { records, skipped, cached } = await fetchCommentary(source);
-  console.log(verified(source, cached));
+export async function fetchCommentaryRecords(
+  source: CommentarySource,
+  { log = console.log, ...cache }: StudyFetchOptions = {},
+) {
+  const { records, skipped, cached } = await fetchCommentary(source, cache);
+  log(verified(source, cached));
   if (skipped.length > 0) {
-    console.log(`${source.name}: ${skipped.length} notes skipped: ${skipped.join(", ")}`);
+    log(`${source.name}: ${skipped.length} notes skipped: ${skipped.join(", ")}`);
   }
   return records;
 }

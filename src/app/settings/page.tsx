@@ -61,7 +61,7 @@ export default async function SettingsPage() {
       {firstBoot.state !== "none" && (
         <section aria-labelledby="data-heading" className="mt-12 space-y-4">
           <h2 id="data-heading" className="font-serif text-2xl tracking-tight">
-            Bible data
+            Bible and study data
           </h2>
           {firstBoot.state === "stalled" && (
             <FormMessage kind="error">{STALLED_MESSAGE}</FormMessage>

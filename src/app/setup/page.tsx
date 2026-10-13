@@ -32,7 +32,7 @@ async function load() {
   }
 }
 
-// The first screen of a new install. While the Bible is still loading it
+// The first screen of a new install. While first boot is still loading it
 // shows progress; then it asks for the owner account and the site settings.
 // Once an owner exists it is closed for good.
 export default async function SetupPage({ searchParams }: PageProps<"/setup">) {
@@ -61,8 +61,9 @@ export default async function SetupPage({ searchParams }: PageProps<"/setup">) {
         <div className="mt-6 space-y-5" data-setup={loading ? "loading" : "blocked"}>
           {loading ? (
             <p role="status" className="text-stone-600 dark:text-stone-400">
-              Selah is loading the Bible for the first time. This takes a few minutes; the
-              page updates by itself, and setup starts when it is done.
+              Selah is loading the Bible, cross references and commentaries for the first
+              time. This takes a minute or so; the page updates by itself, and setup starts
+              when it is done.
             </p>
           ) : state.status.state === "stalled" ? (
             <FormMessage kind="error">{STALLED_MESSAGE}</FormMessage>

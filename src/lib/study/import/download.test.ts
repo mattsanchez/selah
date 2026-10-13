@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { DownloadError } from "@/lib/bible/import/download";
 import { zip } from "@/lib/bible/import/zip.fixture";
 
 import type { CommentarySource, StudyDownload } from "../sources";
@@ -99,6 +100,10 @@ describe("fetchCrossReferences", () => {
     await expect(
       fetchCrossReferences(crossReferences(), { cacheDir, fetchImpl: server({}, 404).fetchImpl }),
     ).rejects.toThrow(/HTTP 404/);
+    // A DownloadError, which first boot retries; a changed file it does not.
+    await expect(
+      fetchCrossReferences(crossReferences(), { cacheDir, fetchImpl: server({}, 503).fetchImpl }),
+    ).rejects.toBeInstanceOf(DownloadError);
     await expect(
       fetchCrossReferences(crossReferences(), {
         cacheDir,

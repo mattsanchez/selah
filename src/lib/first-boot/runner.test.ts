@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { ChecksumError, DownloadError } from "@/lib/bible/import/download";
 import { BIBLE_SOURCES } from "@/lib/bible/import/sources";
+import { StudyChecksumError } from "@/lib/study/import/download";
+import { CROSS_REFERENCES } from "@/lib/study/sources";
 
 import { describeImportFailure, withDownloadRetries } from "./imports";
 import {
@@ -182,6 +184,17 @@ describe("import failures", () => {
     expect(message).toContain("ebible.org");
     expect(message).toContain("trying again will not help");
     expect(message).toContain("Upgrade Selah");
+    expect(message).not.toContain("docker compose restart");
+  });
+
+  it("a study source that changed is reported the same way", () => {
+    const error = new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64));
+    const { message } = describeImportFailure("The cross references from OpenBible.info", error);
+    expect(message).toContain("The cross references from OpenBible.info was not loaded");
+    expect(message).toContain(CROSS_REFERENCES.downloadUrl);
+    expect(message).toContain("a.openbible.info");
+    expect(message).toContain("trying again will not help");
+    expect(message).toContain("Everything that did load keeps working");
     expect(message).not.toContain("docker compose restart");
   });
 
