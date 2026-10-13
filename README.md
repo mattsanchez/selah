@@ -273,7 +273,9 @@ The sources' markup is never printed as it arrives: the import reduces it to a h
 
 ## Data releases
 
-Every pinned source file is mirrored as an asset of a GitHub release of this repository that holds data only: a *data release*, tagged `data-v1`, `data-v2` and so on.
+All ten pinned source files are mirrored as assets of a GitHub release of this repository that holds data only: a *data release*, tagged `data-v1`, `data-v2` and so on.
+That is the three translations, the two formatting archives, the cross references, the three commentaries and the study notes; none is left to its publisher alone.
+The three commentaries are the CrossWire Bible Society's SWORD module packages: the commentary text is public domain, and each module's own `DistributionLicense` field is `Public Domain`. [DATA-LICENSES.md](DATA-LICENSES.md#selahs-mirror-of-these-files) gives the terms each file is mirrored under.
 It is not a version of Selah and holds no code. GitHub lists it as a pre-release: that is the one marking that keeps GitHub from ever presenting a data release as the latest version of Selah.
 No dataset is committed to git.
 
