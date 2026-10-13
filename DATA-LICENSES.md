@@ -22,6 +22,9 @@ The publisher's licensing page, <https://berean.bible/licensing.htm>, says:
 
 No attribution is required; Selah credits the translation anyway.
 
+The publisher's downloads page, <https://berean.bible/downloads.htm>, links the same text in USFM ("Berean Standard Bible - USFM", <https://bereanbible.com/bsb_usfm.zip>).
+That file is the Berean Standard Bible text the statement above places in the public domain, and it marks the words of Jesus (USFM `\wj`), which the import reads from it.
+
 ### World English Bible
 
 This is the edition without the Deuterocanon (eBible.org id `engwebp`).
@@ -31,6 +34,9 @@ Its page says:
 
 Selah does not change the words of the text.
 See "What the import changes" below for the one place it changes a verse number.
+
+The same page links the text in USFM (<https://ebible.org/Scriptures/engwebp_usfm.zip>).
+The archive carries the same public-domain notice in its `copr.htm`, and it marks the WEB's prose paragraphs (USFM `\p`), which the import reads from it.
 
 ### King James Version
 
@@ -55,11 +61,30 @@ The import reads only the Bible text, headings and footnotes from these files; i
 
 Each file is pinned by a checksum in `src/lib/bible/import/sources.ts`, and the import refuses a file whose text does not match.
 
+### Formatting from the publishers' own files
+
+The API's files leave out two things the publishers' files have, so the import also downloads one file from each of two publishers, for formatting only:
+
+| Translation | File | Publisher's page | What is read from it |
+| :--- | :--- | :--- | :--- |
+| BSB | <https://bereanbible.com/bsb_usfm.zip> | <https://berean.bible/downloads.htm> | Which words are the words of Jesus (red-letter text) |
+| WEB | <https://ebible.org/Scriptures/engwebp_usfm.zip> | <https://ebible.org/Scriptures/details.php?id=engwebp> | Where prose paragraphs start |
+
+No words are taken from these files.
+They are different builds of the same translations, and their wording differs from the API's in about a hundred verses each, so the import lays a mark onto a verse only when the two texts are the same character for character apart from spacing and line breaks.
+A verse where they differ keeps the formatting it had, and the import prints every such verse.
+With the files pinned today that is 12 of the 2,047 BSB verses with words of Jesus (Matthew 5:48, 6:34, 19:30 and 24:51, Mark 12:29, Luke 5:24, John 6:42, 13:38, 14:31 and 15:27, Revelation 1:20 and 2:29), and 23 of the 7,759 WEB verses where a paragraph starts.
+
+Also not stored are 745 WEB paragraphs that start in the middle of a verse, such as a change of speaker: the stored text has no line break there, and the import does not change the text to make one.
+
+Both files are pinned by a checksum in the same way, over the words and marks the import reads from them.
+The KJV has no second file: its paragraph marks stop at Acts 20 in the printed text itself.
+
 ## What the import changes
 
 The words of each translation are stored as published. The import changes only the following:
 
-- Formatting is reduced to plain text, with a line break between lines. Paragraph and stanza breaks, and the marking of the words of Jesus, are stored beside the text as positions in it, where the source has them. The indent of each line of poetry is not kept.
+- Formatting is reduced to plain text, with a line break between lines. Paragraph and stanza breaks, and the marking of the words of Jesus, are stored beside the text as positions in it, where the sources have them. The indent of each line of poetry is not kept.
 - KJV: the paragraph mark (¶) at the start of a verse is taken out of the text and stored as a paragraph break. Also removed is the chapter-and-verse prefix of each footnote ("3.3 for: or, about" becomes "for: or, about").
 - WEB: the closing doxology of Romans, which the WEB prints as Romans 14:24-26, is stored under Romans 16:25-27, where the KJV and BSB have it, so that one verse id means the same words in every translation. The WEB's footnotes there explain the two placements.
 - WEB: four verses the WEB leaves empty except for a footnote (Luke 17:36, Acts 8:37, Acts 15:34 and Acts 24:7), and its empty Romans 16:25, are not stored as verses; each footnote is kept on the verse before.
@@ -67,4 +92,5 @@ The words of each translation are stored as published. The import changes only t
 ## In this repository
 
 The only Bible text committed to git is the test fixture in `src/db/seed/fixtures/bible/`: Psalms, John and Romans from each of the three translations above, as produced by the import.
+The BSB's red-letter marking and the WEB's paragraphs in it come from the two USFM files above; no text from those files is committed.
 Full datasets are downloaded by `pnpm import:bible` into `.cache/`, which git ignores.

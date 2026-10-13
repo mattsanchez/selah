@@ -12,6 +12,14 @@ for (const source of selectSources(process.argv.slice(2))) {
   const verses = await fetchVerses(source, FIXTURE_BOOKS);
   const file = fileURLToPath(fixtureUrl(source.id));
   await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, serializeFixture(source.id, source.contentSha256, verses));
+  await writeFile(
+    file,
+    serializeFixture(
+      source.id,
+      source.contentSha256,
+      verses,
+      source.formatting?.contentSha256,
+    ),
+  );
   console.log(`${source.abbrev}: wrote ${verses.length} verses to ${path.relative(".", file)}`);
 }
