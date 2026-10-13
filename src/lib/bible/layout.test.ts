@@ -191,6 +191,33 @@ describe("layoutPassage", () => {
     expect(notes.map((note) => note.marker)).toEqual(["a", "b"]);
   });
 
+  it("splits a verse of prose at a paragraph break, with a note or red-letter text across it", () => {
+    const { blocks } = layoutPassage([
+      [
+        verse(43001038, "He said, “Come.”\nThey came. He said, “Stay,\nand see.”", {
+          breaks: [
+            { offset: 0, kind: "paragraph" },
+            { offset: 17, kind: "paragraph" },
+            { offset: 44, kind: "paragraph" },
+          ],
+          // The note sits before the line break the first paragraph ends on.
+          footnotes: [{ offset: 16, text: "A note." }],
+          wordsOfJesus: [
+            { start: 9, end: 16 },
+            { start: 37, end: 53 },
+          ],
+        }),
+        verse(43001039, "The next verse runs on."),
+      ],
+    ]);
+    expect(showBlocks(blocks)).toEqual([
+      "(38)He said, [“Come.”]{a}",
+      "They came. He said, [“Stay,]",
+      "[and see.”] (39)The next verse runs on.",
+    ]);
+    for (const block of paragraphs(blocks)) expect(paragraphLines(block.parts)).toHaveLength(1);
+  });
+
   it("prints sections and superscriptions before the verse, subscriptions after", () => {
     const { blocks } = layoutPassage([
       [
@@ -332,9 +359,10 @@ describe("layoutPassage", () => {
       const { blocks, notes } = layoutPassage([await fixture("bsb", 43003016, 43003021)]);
       const text = showBlocks(blocks);
       expect(text).toHaveLength(2);
-      expect(text[0]).toMatch(/^\(16\)For God so loved the world .*one and only\{a\} Son/);
-      expect(text[0]).toContain(" (17)For God did not send His Son");
-      expect(text[1]).toMatch(/^\(19\)And this is the verdict: .* \(20\).* \(21\).*in God\.”\{b\}$/);
+      // Jesus is speaking throughout, so every verse is red.
+      expect(text[0]).toMatch(/^\(16\)\[For God so loved the world .*one and only\]\{a\}\[ Son/);
+      expect(text[0]).toContain(" (17)[For God did not send His Son");
+      expect(text[1]).toMatch(/^\(19\)\[And this is the verdict: .* \(20\).* \(21\).*in God\.”\]\{b\}$/);
       expect(notes.map((note) => note.verseId)).toEqual([43003016, 43003021]);
     });
 
@@ -353,16 +381,40 @@ describe("layoutPassage", () => {
       expect(notes).toHaveLength(3);
     });
 
-    it("marks John 3:16 red in the WEB and the KJV, and not in the BSB", async () => {
-      const red = async (translationId: string) => {
-        const { blocks } = layoutPassage([await fixture(translationId, 43003016)]);
+    it("marks John 3:16 red in all three translations, and not John 3:1", async () => {
+      const red = async (translationId: string, verseId: number) => {
+        const { blocks } = layoutPassage([await fixture(translationId, verseId)]);
         return paragraphs(blocks)
           .flatMap((block) => block.parts.flatMap((part) => part.inlines))
           .some((inline) => inline.type === "text" && inline.wordsOfJesus);
       };
-      expect(await red("web")).toBe(true);
-      expect(await red("kjv")).toBe(true);
-      expect(await red("bsb")).toBe(false);
+      for (const translationId of ["bsb", "web", "kjv"]) {
+        expect(await red(translationId, 43003016)).toBe(true);
+        expect(await red(translationId, 43003001)).toBe(false);
+      }
+    });
+
+    it("starts a paragraph at each change of speaker inside WEB John 1:21", async () => {
+      const { blocks } = layoutPassage([await fixture("web", 43001020, 43001022)]);
+      expect(showBlocks(blocks)).toEqual([
+        "(20)He declared, and didn’t deny, but he declared, “I am not the Christ.”",
+        "(21)They asked him, “What then? Are you Elijah?”",
+        "He said, “I am not.”",
+        "“Are you the prophet?”",
+        "He answered, “No.”",
+        "(22)They said therefore to him, “Who are you? Give us an answer to take back to those who sent us. What do you say about yourself?”",
+      ]);
+      // Each is one line of prose.
+      for (const block of paragraphs(blocks)) expect(paragraphLines(block.parts)).toHaveLength(1);
+    });
+
+    it("keeps the red-letter text of a verse in place after a paragraph break inside it", async () => {
+      // WEB John 4:17: the woman answers, then Jesus.
+      const { blocks } = layoutPassage([await fixture("web", 43004017)]);
+      expect(showBlocks(blocks)).toEqual([
+        "(17)The woman answered, “I have no husband.”",
+        "Jesus said to her, [“You said well, ‘I have no husband,’]",
+      ]);
     });
 
     it("prints the KJV's subscription after Romans 16:27", async () => {
@@ -465,6 +517,26 @@ describe("layoutParallel", () => {
     ]);
     expect(rows).toHaveLength(6);
     expect(notes.map((list) => list.map((note) => note.marker))).toEqual([["a", "b"], ["a"], []]);
+  });
+
+  it("starts a paragraph inside a cell where one starts inside the verse", async () => {
+    const { rows } = layoutParallel([
+      [await fixture("web", 43001021)],
+      [await fixture("kjv", 43001021)],
+    ]);
+    const [row] = rows;
+    if (row.type !== "verse") throw new Error("expected a verse row");
+    expect(row.cells.map((cell) => showBlocks(cell!))).toEqual([
+      [
+        "(21)They asked him, “What then? Are you Elijah?”",
+        "He said, “I am not.”",
+        "“Are you the prophet?”",
+        "He answered, “No.”",
+      ],
+      [
+        "(21)And they asked him, What then? Art thou Elias? And he saith, I am not. Art thou that prophet? And he answered, No.",
+      ],
+    ]);
   });
 
   it("keeps a verse's headings in its cell", () => {

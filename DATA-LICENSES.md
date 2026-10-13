@@ -73,9 +73,16 @@ The API's files leave out two things the publishers' files have, so the import a
 No words are taken from these files.
 They are different builds of the same translations, and their wording differs from the API's in about a hundred verses each, so the import lays a mark onto a verse only when the two texts are the same character for character apart from spacing and line breaks.
 A verse where they differ keeps the formatting it had, and the import prints every such verse.
-With the files pinned today that is 12 of the 2,047 BSB verses with words of Jesus (Matthew 5:48, 6:34, 19:30 and 24:51, Mark 12:29, Luke 5:24, John 6:42, 13:38, 14:31 and 15:27, Revelation 1:20 and 2:29), and 23 of the 7,759 WEB verses where a paragraph starts.
+With the files pinned today that is 23 of the 7,759 WEB verses where a paragraph starts, and one of the 2,047 BSB verses with words of Jesus.
 
-Also not stored are 745 WEB paragraphs that start in the middle of a verse, such as a change of speaker: the stored text has no line break there, and the import does not change the text to make one.
+For red-letter text the import allows two differences in punctuation, because neither leaves the place of a span in doubt; it prints these verses too:
+
+- A closing quotation mark in square brackets (`[’’]`) at the end of the USFM verse, which the stored text does not have, is set aside (Matthew 5:48, 6:34, 19:30 and 24:51, John 13:38, 14:31 and 15:27, Revelation 1:20 and 2:29).
+- A verse that differs in one stretch of punctuation is marked when every span starts and ends on a character outside that stretch: Mark 12:29 ("Hear O Israel" against "Hear, O Israel") and Luke 5:24 ("..." against "…").
+
+The one BSB verse left without red-letter text is John 6:42, where the span ends on a closing quotation mark that the two files put on either side of the question mark.
+
+745 of the WEB's paragraphs start in the middle of a verse, such as at a change of speaker. They are stored, and each changes the text by one character: see below.
 
 Both files are pinned by a checksum in the same way, over the words and marks the import reads from them.
 The KJV has no second file: its paragraph marks stop at Acts 20 in the printed text itself.
@@ -86,6 +93,7 @@ The words of each translation are stored as published. The import changes only t
 
 - Formatting is reduced to plain text, with a line break between lines. Paragraph and stanza breaks, and the marking of the words of Jesus, are stored beside the text as positions in it, where the sources have them. The indent of each line of poetry is not kept.
 - KJV: the paragraph mark (¶) at the start of a verse is taken out of the text and stored as a paragraph break. Also removed is the chapter-and-verse prefix of each footnote ("3.3 for: or, about" becomes "for: or, about").
+- WEB: where a paragraph starts in the middle of a verse, the space before it is stored as a line break, because a paragraph break inside a verse is stored as a position that follows a line break. This is 745 spaces in 682 verses. No word or punctuation mark changes: replacing every line break in the text with a space gives the text as it was.
 - WEB: the closing doxology of Romans, which the WEB prints as Romans 14:24-26, is stored under Romans 16:25-27, where the KJV and BSB have it, so that one verse id means the same words in every translation. The WEB's footnotes there explain the two placements.
 - WEB: four verses the WEB leaves empty except for a footnote (Luke 17:36, Acts 8:37, Acts 15:34 and Acts 24:7), and its empty Romans 16:25, are not stored as verses; each footnote is kept on the verse before.
 

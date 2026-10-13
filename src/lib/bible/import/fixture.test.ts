@@ -256,22 +256,52 @@ describe("Bible fixture", () => {
       [],
     ]);
     expect(fixture.web.get(45_001_008)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
-    expect(paragraphs("web", 43)).toHaveLength(318);
-    expect(paragraphs("web", 45)).toHaveLength(96);
+    expect(paragraphs("web", 43)).toHaveLength(370);
+    expect(paragraphs("web", 45)).toHaveLength(97);
+  });
+
+  it("starts the WEB's paragraphs inside a verse after a line break", () => {
+    // John 1:21: each change of speaker starts a paragraph.
+    expect(fixture.web.get(43_001_021)).toMatchObject({
+      text: "They asked him, “What then? Are you Elijah?”\nHe said, “I am not.”\n“Are you the prophet?”\nHe answered, “No.”",
+      breaks: [
+        { offset: 0, kind: "paragraph" },
+        { offset: 45, kind: "paragraph" },
+        { offset: 66, kind: "paragraph" },
+        { offset: 89, kind: "paragraph" },
+      ],
+    });
+    // John 1:39: the red-letter span and the footnote are where they were.
+    const verse = fixture.web.get(43_001_039)!;
+    expect(verse.text.slice(0, 44)).toBe("He said to them, “Come and see.”\nThey came a");
+    expect(words("web", 43_001_039)).toEqual(["“Come and see.”"]);
+    expect(verse.footnotes.map((note) => note.offset)).toEqual([verse.text.length]);
+
+    const inside = (book: number) =>
+      inBook("web", book).flatMap((v) => v.breaks.filter((item) => item.offset > 0));
+    expect(inside(43)).toHaveLength(52);
+    expect(inside(45)).toHaveLength(1);
   });
 
   it("marks the words of Jesus in all three translations", () => {
-    // The BSB's come from its publisher's USFM; four verses of John whose
-    // words differ there (6:42, 13:38, 14:31 and 15:27) are left unmarked.
-    expect(redLetter("bsb", 43)).toHaveLength(427);
+    // The BSB's come from its publisher's USFM. John 6:42 is left unmarked:
+    // the two files punctuate the end of the quotation differently.
+    expect(redLetter("bsb", 43)).toHaveLength(430);
     expect(redLetter("web", 43)).toHaveLength(436);
     expect(redLetter("kjv", 43)).toHaveLength(419);
     for (const { id } of BIBLE_SOURCES) {
       expect(redLetter(id, 19)).toEqual([]);
       expect(redLetter(id, 45)).toEqual([]);
     }
-    for (const verse of [6_042, 13_038, 14_031, 15_027]) {
-      expect(words("bsb", 43_000_000 + verse)).toEqual([]);
+    expect(words("bsb", 43_006_042)).toEqual([]);
+    // Three verses where the USFM ends on a bracketed closing quotation mark
+    // the stored text does not have.
+    expect(words("bsb", 43_013_038)).toEqual([
+      "“Will you lay down your life for Me?”",
+      "“Truly, truly, I tell you, before the rooster crows, you will deny Me three times.",
+    ]);
+    for (const verse of [14_031, 15_027]) {
+      expect(words("bsb", 43_000_000 + verse)).toEqual([fixture.bsb.get(43_000_000 + verse)!.text]);
     }
   });
 

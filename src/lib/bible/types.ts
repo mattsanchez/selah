@@ -35,7 +35,8 @@ export type Break = { offset: number; kind: "paragraph" | "line" };
 export type Span = { start: number; end: number };
 
 // One row of `verse`, before it is tied to a translation. Lines within `text`
-// are separated by "\n"; a verse of running prose has none.
+// are separated by "\n"; a verse of running prose has one only where a
+// paragraph starts inside it.
 export type VerseRecord = {
   verseId: number;
   text: string;

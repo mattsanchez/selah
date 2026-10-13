@@ -46,12 +46,30 @@ describe("Passage", () => {
   });
 
   it("marks the words of Jesus where the translation does", async () => {
-    const render = async (id: string) =>
+    const render = async (id: string, verseId: number) =>
       renderToStaticMarkup(
-        <Passage translation={translation(id)} ranges={[await fixture(id, 43003016)]} />,
+        <Passage translation={translation(id)} ranges={[await fixture(id, verseId)]} />,
       );
-    expect(await render("web")).toContain("data-words-of-jesus");
-    expect(await render("bsb")).not.toContain("data-words-of-jesus");
+    for (const id of ["bsb", "web", "kjv"]) {
+      expect(await render(id, 43003016)).toContain("data-words-of-jesus");
+      expect(await render(id, 43003001)).not.toContain("data-words-of-jesus");
+    }
+    // BSB John 13:38: Jesus speaks twice, around "Jesus replied."
+    expect(count(await render("bsb", 43013038), "data-words-of-jesus")).toBe(2);
+  });
+
+  it("starts a paragraph where one starts inside a verse of prose", async () => {
+    // WEB John 1:21: three changes of speaker, each a new paragraph.
+    const html = renderToStaticMarkup(
+      <Passage translation={translation("web")} ranges={[await fixture("web", 43001020, 43001022)]} />,
+    );
+    expect(count(html, '<p class="passage-paragraph">')).toBe(6);
+    expect(count(html, 'data-verse-id="43001021"')).toBe(4);
+    expect(count(html, "data-verse-number")).toBe(3);
+    expect(html).toContain('<p class="passage-paragraph"><span data-verse-id="43001021">He said, “I am not.”</span></p>');
+    // Prose stays prose: no line of poetry, and no line break left in the text.
+    expect(html).not.toContain("data-line");
+    expect(html).not.toContain("\n");
   });
 
   it("keeps footnote ids apart with idPrefix", async () => {
@@ -83,5 +101,29 @@ describe("ParallelPassage", () => {
     expect(html).toContain("Attribution of the BSB.");
     expect(html).toContain("Attribution of the KJV.");
     expect(html).toContain('id="p-bsb-ref-0"');
+  });
+
+  it("starts a paragraph inside a cell where one starts inside the verse", async () => {
+    const html = renderToStaticMarkup(
+      <ParallelPassage
+        caption="John 1:21"
+        columns={["web", "kjv"].map((id) => ({ translation: translation(id), ranges: [[]] }))}
+      />,
+    );
+    expect(html).not.toContain("passage-paragraph");
+
+    const columns = await Promise.all(
+      ["web", "kjv"].map(async (id) => ({
+        translation: translation(id),
+        ranges: [await fixture(id, 43001021)],
+      })),
+    );
+    const cells = renderToStaticMarkup(<ParallelPassage caption="John 1:21" columns={columns} />)
+      .split("<td ")
+      .slice(1);
+    expect(cells).toHaveLength(2);
+    expect(count(cells[0], '<p class="passage-paragraph">')).toBe(4);
+    expect(count(cells[1], '<p class="passage-paragraph">')).toBe(1);
+    expect(cells[0]).not.toContain("data-line");
   });
 });
