@@ -3,3 +3,44 @@
 @theme {
   --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
+
+/* Bible text (src/components/passage). These repeat for every verse of a
+   passage, so they are named classes rather than utility lists: a whole book
+   is several thousand verses. */
+@layer components {
+  .passage-text {
+    @apply font-serif text-lg leading-8 text-stone-900 dark:text-stone-100;
+  }
+  .passage-paragraph {
+    @apply my-3 first:mt-0 last:mb-0;
+  }
+  /* A line of poetry; one too long for the column wraps with a hanging indent. */
+  .passage-line {
+    @apply block pl-6 -indent-6;
+  }
+  .passage-verse-number {
+    @apply mr-1 font-sans text-[0.65em] font-semibold text-stone-500 select-none dark:text-stone-400;
+  }
+  .passage-red-letter {
+    @apply text-red-700 dark:text-red-400;
+  }
+  .passage-note-ref {
+    @apply font-sans text-[0.65em] whitespace-nowrap;
+  }
+  .passage-note-ref a,
+  .passage-note-back {
+    @apply rounded-sm font-medium text-sky-700 no-underline hover:underline focus-visible:outline-2 focus-visible:outline-sky-600 dark:text-sky-400;
+  }
+  .passage-note-ref a {
+    @apply px-0.5;
+  }
+  .passage-row {
+    @apply border-b border-stone-200 align-top dark:border-stone-800;
+  }
+  .passage-row > th {
+    @apply py-3 pr-2 text-right font-sans text-xs leading-8 font-semibold text-stone-500 tabular-nums dark:text-stone-400;
+  }
+  .passage-row > td {
+    @apply px-3 py-3;
+  }
+}

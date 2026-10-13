@@ -59,6 +59,25 @@ Review the change, update the pin, and run `pnpm fixture:bible` to rebuild the f
 Each verse is stored as plain text with its headings, footnotes, paragraph breaks and red-letter spans beside it as structured JSON (the shapes are in `src/lib/bible/types.ts`).
 Verses are keyed by a canonical id, `BBCCCVVV` (John 3:16 is `43003016`), shared by every translation; `src/lib/bible` has the helpers and explains how numbering differences between translations are handled.
 
+## Reader
+
+`/read` is the reader: type a reference (`John 3:16-21`, `jn3.16`, `Ps 23`, `John 3:16-18, 22; 4:1-3`) and read the passage with verse numbers, headings, footnotes, paragraphs and red-letter text.
+Every passage has its own URL, and the `t` parameter picks the translations: one for the plain reader, two to four for the parallel view, where each verse is a row so the translations stay aligned.
+
+| URL | Shows |
+| :--- | :--- |
+| `/read/john-3.16-21` | John 3:16-21 in the default translation (BSB) |
+| `/read/psalm-23?t=web` | Psalm 23 in the WEB |
+| `/read/john-3.16-21?t=bsb,web,kjv` | Three translations side by side |
+| `/read/jn3.16`, `/read?q=jn3.16` | Redirect to `/read/john-3.16` |
+
+The pieces, for anyone building on them:
+
+- `src/lib/bible/reference.ts`: the reference parser. `parseReference(text)` returns verse-id ranges or an error with a message for the reader; `formatReference(ranges)` and `referenceSlug(ranges)` write them back as text and as a URL segment.
+- `src/lib/bible/layout.ts`: turns stored verses into blocks of text with footnote markers and red-letter spans in place.
+- `src/components/passage/passage.tsx`: `<Passage>` and `<ParallelPassage>` render those blocks with the translation's attribution.
+- `src/lib/site.ts`: where the default translation is chosen.
+
 ## License
 
 Code: [MIT](LICENSE).

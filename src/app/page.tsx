@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
@@ -7,10 +9,16 @@ export default function HomePage() {
       <p className="text-lg text-stone-600 dark:text-stone-400">
         A self-hostable, open source lifestream for daily Bible reading.
       </p>
-      <div>
+      <div className="flex flex-wrap items-center gap-4">
         <Button asChild>
-          <a href="https://github.com/mattsanchez/selah">View the project</a>
+          <Link href="/read">Read the Bible</Link>
         </Button>
+        <a
+          href="https://github.com/mattsanchez/selah"
+          className="text-sm text-stone-600 underline underline-offset-4 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
+        >
+          View the project
+        </a>
       </div>
     </main>
   );
