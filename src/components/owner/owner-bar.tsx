@@ -7,7 +7,7 @@ const link =
   "rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500";
 
 // A strip across the top of every page, shown only to the signed-in owner.
-// Later milestones add the owner's own links (highlights, drafts) here.
+// Later milestones add the owner's own links (drafts, the feed) here.
 export async function OwnerBar() {
   let owner;
   try {
@@ -29,6 +29,9 @@ export async function OwnerBar() {
         <span className="text-stone-600 dark:text-stone-400">
           Signed in as {owner.email}
         </span>
+        <Link href="/highlights" className={link}>
+          My highlights
+        </Link>
         <Link href="/settings" className={link}>
           Settings
         </Link>

@@ -17,6 +17,10 @@ import { STUDY_PANEL_ID } from "./verse-select";
 // ranked by votes, the verse's footnotes, public-domain commentary and study
 // notes, each with its source's attribution.
 //
+// It is the panel of the selection: it is titled with all the verses
+// selected, what the owner can do with them (highlight them) comes first, as
+// `actions`, and the study below is of the first verse.
+//
 // A server component: the page renders it when the URL has a verse selected,
 // and it reads what it shows from the database. On a wide screen it is a
 // column fixed to the right of the window; on a narrow one, a sheet along the
@@ -48,6 +52,8 @@ type StudyPanelProps = {
   translation: Translation;
   // One per translation on show.
   footnotes: readonly PanelFootnotes[];
+  // What can be done with the selection, printed above the study.
+  actions?: ReactNode;
 };
 
 // Verse text on one line, cut to a preview.
@@ -119,6 +125,7 @@ export async function StudyPanel({
   full,
   translation,
   footnotes,
+  actions,
 }: StudyPanelProps) {
   const db = getDb();
   const verse = { start: verseId, end: verseId };
@@ -129,7 +136,9 @@ export async function StudyPanel({
   const targets = crossReferences.map((row) => ({ start: row.toStart, end: row.toEnd }));
   const texts = (await getPassages(db, [translation.id], targets)).get(translation.id) ?? [];
 
-  const title = formatReference([verse]);
+  // "John 3:16", or all of a longer selection: "John 3:16-18, 20".
+  const studied = formatReference([verse]);
+  const title = selection.length > 0 ? formatReference(selection) : studied;
   const passageHref = (range: VerseRange) => readerPath([range], t);
 
   const crossReferenceItem = (i: number) => {
@@ -242,7 +251,7 @@ export async function StudyPanel({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold tracking-wide text-stone-500 uppercase dark:text-stone-400">
-            Study
+            {actions || title !== studied ? "Selected" : "Study"}
           </p>
           <h2 id="study-title" className="font-serif text-2xl tracking-tight">
             {title}
@@ -257,6 +266,14 @@ export async function StudyPanel({
           Close
         </Link>
       </div>
+
+      {actions}
+
+      {title !== studied && (
+        <p data-studied-verse className="mt-7 text-sm text-stone-600 dark:text-stone-400">
+          The study below is of {studied}, the first verse selected.
+        </p>
+      )}
 
       <Section name="cross-references" title="Cross references">
         {crossReferences.length === 0 ? (

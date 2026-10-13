@@ -169,3 +169,111 @@ describe("selectable verses", () => {
     expect(count(html, "data-verse-link")).toBe(2);
   });
 });
+
+describe("highlighted verses", () => {
+  const marks = {
+    highlight: (verseId: number) =>
+      verseId === 43003016
+        ? { color: "yellow", count: 1 }
+        : verseId === 43003017
+          ? { color: "blue", under: "yellow", count: 2 }
+          : undefined,
+    highlightNotes: (verseId: number) =>
+      verseId === 43003017
+        ? [{ id: "h1", href: "/read/john-3.16-18?v=john-3.16-17", label: "Note on John 3:16-17: Loved", text: "Loved" }]
+        : [],
+  };
+
+  it("carry their color, the color beneath it, and a link to the note", async () => {
+    const html = renderToStaticMarkup(
+      <Passage
+        translation={translation("bsb")}
+        ranges={[await fixture("bsb", 43003016, 43003018)]}
+        {...marks}
+      />,
+    );
+    expect(html).toContain('<span data-verse-id="43003016" data-highlight="yellow">');
+    expect(html).toContain(
+      '<span data-verse-id="43003017" data-highlight="blue" data-highlight-under="yellow">',
+    );
+    expect(html).toContain('<span data-verse-id="43003018">');
+    expect(count(html, "data-highlight-note=")).toBe(1);
+    expect(html).toContain(
+      '<a href="/read/john-3.16-18?v=john-3.16-17" data-selection-link="true" data-highlight-note="h1" aria-label="Note on John 3:16-17: Loved" title="Loved"',
+    );
+    // The link is inside the verse it follows, after its text.
+    expect(html.indexOf("data-highlight-note=")).toBeGreaterThan(html.indexOf("save the world through Him"));
+    expect(html.indexOf("data-highlight-note=")).toBeLessThan(html.indexOf('data-verse-id="43003018"'));
+  });
+
+  it("color every piece of a verse printed in several, with one note link after the last", async () => {
+    // Psalm 23:1 in the BSB is two lines of poetry.
+    const html = renderToStaticMarkup(
+      <Passage
+        translation={translation("bsb")}
+        ranges={[await fixture("bsb", 19023001, 19023002)]}
+        highlight={(verseId) => (verseId === 19023001 ? { color: "green", count: 1 } : undefined)}
+        highlightNotes={(verseId) =>
+          verseId === 19023001 ? [{ id: "h2", href: "/x", label: "Note", text: "Shepherd" }] : []
+        }
+      />,
+    );
+    expect(count(html, 'data-verse-id="19023001" data-highlight="green"')).toBe(2);
+    expect(count(html, "data-highlight-note=")).toBe(1);
+    expect(html.indexOf("data-highlight-note=")).toBeGreaterThan(html.indexOf("I shall not want"));
+  });
+
+  it("color the whole row of the parallel view, a missing verse's cell included", async () => {
+    const html = renderToStaticMarkup(
+      <ParallelPassage
+        caption="John 5:3-5"
+        columns={[
+          { translation: translation("bsb"), ranges: [await fixture("bsb", 43005003, 43005005)] },
+          { translation: translation("kjv"), ranges: [await fixture("kjv", 43005003, 43005005)] },
+        ]}
+        highlight={(verseId) => (verseId === 43005004 ? { color: "pink", count: 1 } : undefined)}
+        highlightNotes={(verseId) =>
+          verseId === 43005004 ? [{ id: "h3", href: "/y", label: "Note", text: "The angel" }] : []
+        }
+      />,
+    );
+    expect(html).toContain('<tr data-verse-row="43005004" data-highlight="pink" class="passage-row">');
+    expect(html).toContain('<tr data-verse-row="43005003" class="passage-row">');
+    const row = html.slice(html.indexOf('data-verse-row="43005004"'), html.indexOf('data-verse-row="43005005"'));
+    expect(row).toContain("data-missing-verse");
+    expect(count(row, "data-highlight-note=")).toBe(1);
+    expect(count(html, "data-highlight-note=")).toBe(1);
+  });
+
+  it("leave the markup as it was when there are none", async () => {
+    const ranges = [await fixture("bsb", 43003016, 43003017)];
+    const plain = renderToStaticMarkup(<Passage translation={translation("bsb")} ranges={ranges} />);
+    const none = renderToStaticMarkup(
+      <Passage
+        translation={translation("bsb")}
+        ranges={ranges}
+        highlight={() => undefined}
+        highlightNotes={() => []}
+      />,
+    );
+    expect(none).toBe(plain);
+    expect(plain).not.toContain("data-highlight");
+  });
+});
+
+describe("verse numbers while verses are being added", () => {
+  it("say what a click on them does", async () => {
+    const html = renderToStaticMarkup(
+      <Passage
+        translation={translation("bsb")}
+        ranges={[await fixture("bsb", 43003016, 43003017)]}
+        verseHref={(verseId) => `/toggle/${verseId}`}
+        isSelected={(verseId) => verseId === 43003016}
+        verseLabel={(verseId) => (verseId === 43003016 ? "Remove John 3:16" : "Add John 3:17")}
+      />,
+    );
+    expect(html).toContain('aria-label="Remove John 3:16"');
+    expect(html).toContain('aria-label="Add John 3:17"');
+    expect(html).not.toContain("Study John");
+  });
+});

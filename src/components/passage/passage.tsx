@@ -10,6 +10,7 @@ import {
 } from "@/lib/bible/layout";
 import type { Translation } from "@/lib/bible/passage";
 import type { VerseRecord } from "@/lib/bible/types";
+import type { VerseMark } from "@/lib/items/marks";
 import { formatVerseId, parseVerseId } from "@/lib/bible/verse-id";
 
 // Renders Bible text: <Passage> for one translation, <ParallelPassage> for
@@ -27,6 +28,11 @@ import { formatVerseId, parseVerseId } from "@/lib/bible/verse-id";
 // verse selected, and the verses of `selected` are marked `data-selected`.
 // The reader wraps the passage in <VerseSelect>, which turns a click anywhere
 // in a verse into the same navigation.
+//
+// Highlights are shown the same way: `highlight` says what a verse looks like
+// and the verse carries it as `data-highlight` (a color id of
+// src/lib/items/palette.ts, styled in globals.css); `highlightNotes` lists
+// the notes to reach from a verse, each printed after it as a small link.
 
 // What makes verses selectable; both components take it.
 export type VerseSelection = {
@@ -34,7 +40,36 @@ export type VerseSelection = {
   verseHref?: (verseId: number) => string;
   // Whether a verse is selected.
   isSelected?: (verseId: number) => boolean;
+  // What a verse number's link is called; "Study John 3:16" unless given.
+  verseLabel?: (verseId: number) => string;
 };
+
+// A link after a verse to the note of a highlight that ends there.
+export type VerseNote = { id: string; href: string; label: string; text: string };
+
+// The highlights on the verses; both components take it.
+export type VerseHighlights = {
+  highlight?: (verseId: number) => VerseMark | undefined;
+  highlightNotes?: (verseId: number) => readonly VerseNote[];
+};
+
+function NoteLinks({ notes }: { notes: readonly VerseNote[] }) {
+  return notes.map((note) => (
+    <a
+      key={note.id}
+      href={note.href}
+      data-selection-link
+      data-highlight-note={note.id}
+      aria-label={note.label}
+      title={note.text}
+      className="passage-highlight-note"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true" className="inline size-[0.8em] fill-current">
+        <path fillRule="evenodd" d="M2 2.5A1.5 1.5 0 0 1 3.5 1h9A1.5 1.5 0 0 1 14 2.5v7a1.5 1.5 0 0 1-1.5 1.5H7.4l-3.2 3.3a.5.5 0 0 1-.9-.3V11h-.8A1.5 1.5 0 0 1 2 9.5Zm3 2a.5.5 0 0 0 0 1h6a.5.5 0 0 0 0-1Zm0 2.5a.5.5 0 0 0 0 1h4a.5.5 0 0 0 0-1Z" />
+      </svg>
+    </a>
+  ));
+}
 
 // A verse number, as a link when verses are selectable.
 function VerseNumber({
@@ -42,13 +77,14 @@ function VerseNumber({
   number,
   verseHref,
   isSelected,
+  verseLabel,
 }: { verseId: number; number: number } & VerseSelection) {
   if (!verseHref) return number;
   return (
     <a
       href={verseHref(verseId)}
       data-verse-link={verseId}
-      aria-label={`Study ${formatVerseId(verseId)}`}
+      aria-label={verseLabel?.(verseId) ?? `Study ${formatVerseId(verseId)}`}
       aria-current={isSelected?.(verseId) ? "true" : undefined}
       className="passage-verse-link"
     >
@@ -90,11 +126,27 @@ function Blocks({
   verseNumbers = true,
   verseHref,
   isSelected,
+  verseLabel,
+  highlight,
+  highlightNotes,
 }: {
   blocks: Block[];
   idPrefix: string;
   verseNumbers?: boolean;
-} & VerseSelection) {
+} & VerseSelection &
+  VerseHighlights) {
+  // A verse may be printed in several pieces; a note's link follows the last.
+  const lastPiece = new Map<number, string>();
+  if (highlightNotes) {
+    blocks.forEach((block, i) => {
+      if (block.type !== "paragraph") return;
+      paragraphLines(block.parts).forEach((line, j) =>
+        line.forEach((part, k) => {
+          if (part.join !== "inline") lastPiece.set(part.verseId, `${i}-${j}-${k}`);
+        }),
+      );
+    });
+  }
   return blocks.map((block, i) => {
     switch (block.type) {
       case "gap":
@@ -137,14 +189,16 @@ function Blocks({
         return (
           <p key={i} className="passage-paragraph">
             {lines.map((line, j) => {
-              const parts = line.map((part, k) =>
-                part.join === "inline" ? (
-                  <Fragment key={k}> </Fragment>
-                ) : (
+              const parts = line.map((part, k) => {
+                if (part.join === "inline") return <Fragment key={k}> </Fragment>;
+                const mark = highlight?.(part.verseId);
+                return (
                   <span
                     key={k}
                     data-verse-id={part.verseId}
                     data-selected={isSelected?.(part.verseId) ? "" : undefined}
+                    data-highlight={mark?.color}
+                    data-highlight-under={mark?.under}
                   >
                     {verseNumbers && part.number !== undefined && (
                       <sup data-verse-number className="passage-verse-number">
@@ -153,13 +207,17 @@ function Blocks({
                           number={part.number}
                           verseHref={verseHref}
                           isSelected={isSelected}
+                          verseLabel={verseLabel}
                         />
                       </sup>
                     )}
                     <Inlines inlines={part.inlines} idPrefix={idPrefix} />
+                    {highlightNotes && lastPiece.get(part.verseId) === `${i}-${j}-${k}` && (
+                      <NoteLinks notes={highlightNotes(part.verseId)} />
+                    )}
                   </span>
-                ),
-              );
+                );
+              });
               return poetry ? (
                 <span key={j} data-line className="passage-line">
                   {parts}
@@ -242,7 +300,8 @@ export function Attribution({ translation }: { translation: Translation }) {
   );
 }
 
-type PassageProps = VerseSelection & {
+type PassageProps = VerseSelection &
+  VerseHighlights & {
   translation: Translation;
   // The verses of each range of the passage, as getPassages() returns them.
   ranges: readonly (readonly VerseRecord[])[];
@@ -256,19 +315,13 @@ export function Passage({
   translation,
   ranges,
   idPrefix = translation.id,
-  verseHref,
-  isSelected,
+  ...verses
 }: PassageProps) {
   const { blocks, notes } = layoutPassage(ranges);
   return (
     <div data-passage={translation.id} className="space-y-6">
       <div className="passage-text">
-        <Blocks
-          blocks={blocks}
-          idPrefix={idPrefix}
-          verseHref={verseHref}
-          isSelected={isSelected}
-        />
+        <Blocks blocks={blocks} idPrefix={idPrefix} {...verses} />
       </div>
       <Notes notes={notes} idPrefix={idPrefix} />
       <Attribution translation={translation} />
@@ -276,7 +329,8 @@ export function Passage({
   );
 }
 
-type ParallelPassageProps = VerseSelection & {
+type ParallelPassageProps = VerseSelection &
+  VerseHighlights & {
   // Two or more translations with the same ranges, in column order.
   columns: readonly {
     translation: Translation;
@@ -289,13 +343,17 @@ type ParallelPassageProps = VerseSelection & {
 
 // The same passage in several translations, one column each, with every verse
 // on its own row so the translations stay aligned. A translation that lacks a
-// verse has an empty cell saying so.
+// verse has an empty cell saying so. A row carries its verse's selection and
+// highlight, so the cell of a translation without the verse shows them too.
 export function ParallelPassage({
   columns,
   caption,
   idPrefix = "p",
   verseHref,
   isSelected,
+  verseLabel,
+  highlight,
+  highlightNotes,
 }: ParallelPassageProps) {
   const { rows, notes } = layoutParallel(columns.map((column) => column.ranges));
   const prefix = (t: number) => `${idPrefix}-${columns[t].translation.id}`;
@@ -339,6 +397,8 @@ export function ParallelPassage({
                   key={i}
                   data-verse-row={row.verseId}
                   data-selected={isSelected?.(row.verseId) ? "" : undefined}
+                  data-highlight={highlight?.(row.verseId)?.color}
+                  data-highlight-under={highlight?.(row.verseId)?.under}
                   className="passage-row"
                 >
                   <th scope="row">
@@ -347,7 +407,13 @@ export function ParallelPassage({
                       number={row.number}
                       verseHref={verseHref}
                       isSelected={isSelected}
+                      verseLabel={verseLabel}
                     />
+                    {highlightNotes && (
+                      <span className="block">
+                        <NoteLinks notes={highlightNotes(row.verseId)} />
+                      </span>
+                    )}
                   </th>
                   {row.cells.map((blocks, t) => (
                     <td

@@ -78,6 +78,15 @@ describe("readerPath", () => {
     expect(readerPath(ranges("John 3"), undefined, { v, full: "matthew-henry" })).toBe(
       "/read/john-3?v=john-3.16&full=matthew-henry",
     );
+    // Several verses, and a click that adds to them.
+    const several = ranges("John 3:16-18, 20");
+    expect(readerPath(ranges("John 3"), undefined, { v: several })).toBe(
+      "/read/john-3?v=john-3.16-18,20",
+    );
+    expect(readerPath(ranges("John 3"), "web", { v: several, add: true })).toBe(
+      "/read/john-3?t=web&v=john-3.16-18,20&add=1",
+    );
+    expect(readerPath(ranges("John 3"), undefined, { v: [], add: true })).toBe("/read/john-3");
     // Nothing is printed in full without a verse to study.
     expect(readerPath(ranges("John 3"), undefined, { v: [], full: "matthew-henry" })).toBe(
       "/read/john-3",

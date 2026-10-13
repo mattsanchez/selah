@@ -200,3 +200,68 @@ export const bootStep = pgTable("boot_step", {
   // Touched while the step runs, so a step whose process died can be told from one still working.
   heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
 });
+
+// What kind of thing an item is; see "Feed item types" in docs/spec.md.
+export const itemKind = pgEnum("item_kind", ["highlight", "reflection", "note"]);
+
+// Who can see an item. "unlisted" is reachable by its link but not listed.
+export const itemVisibility = pgEnum("item_visibility", ["private", "unlisted", "public"]);
+
+// Everything the owner makes: highlights, reflections and notes share this
+// table, and each is anchored to verses through `item_passage`. Read and
+// written through src/lib/items.
+export const item = pgTable(
+  "item",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    kind: itemKind().notNull(),
+    // The body of a reflection or a note.
+    markdown: text(),
+    // A highlight's optional one-line note.
+    note: text(),
+    // A highlight's color: an id from the palette in src/lib/items/palette.ts.
+    color: text(),
+    visibility: itemVisibility().notNull().default("private"),
+    // When it entered the feed; null while it never has.
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // The owner's items of one kind, newest first: "My highlights".
+    index("item_owner_kind_created_idx").on(table.ownerId, table.kind, table.createdAt.desc()),
+    check("item_highlight_has_color", sql`${table.kind} <> 'highlight' or ${table.color} is not null`),
+  ],
+);
+
+// The passage index for every item kind: one row per inclusive range of
+// verse ids the item is on. A highlight of verses that are not next to each
+// other has one row per run of verses.
+export const itemPassage = pgTable(
+  "item_passage",
+  {
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => item.id, { onDelete: "cascade" }),
+    verseStart: integer("verse_start").notNull(),
+    verseEnd: integer("verse_end").notNull(),
+    // The translation the passage was read in when the item was made. The
+    // item is on the verses, whichever translation shows them.
+    translationId: text("translation_id").references(() => translation.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.itemId, table.verseStart, table.verseEnd] }),
+    check("item_passage_range", sql`${table.verseStart} <= ${table.verseEnd}`),
+    // "Everything on Romans 8": ranges that overlap a range. Queries must use
+    // the same expression; see overlapsPassage in src/lib/items/queries.ts.
+    index("item_passage_range_idx").using(
+      "gist",
+      sql`int4range(${table.verseStart}, ${table.verseEnd}, '[]')`,
+    ),
+  ],
+);

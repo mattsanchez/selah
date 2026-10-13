@@ -1,18 +1,27 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import Link from "next/link";
+
+import { SelectionHighlights } from "@/components/highlights/selection-highlights";
 import { ParallelPassage, Passage } from "@/components/passage/passage";
 import { ReaderShell } from "@/components/reader/reader-shell";
 import { TranslationPicker } from "@/components/reader/translation-picker";
 import { StudyPanel, type PanelFootnotes } from "@/components/study/study-panel";
 import { VerseSelect } from "@/components/study/verse-select";
 import { getDb } from "@/db/client";
+import { getOwner } from "@/lib/auth/owner";
 import { layoutParallel, layoutPassage } from "@/lib/bible/layout";
 import { getPassages, listTranslations } from "@/lib/bible/passage";
+import { intersectRanges } from "@/lib/bible/ranges";
 import { formatReference, parseReference, referenceSlug } from "@/lib/bible/reference";
+import { formatVerseId } from "@/lib/bible/verse-id";
+import { highlightsOn, placeHighlights } from "@/lib/items/marks";
+import { highlightColor } from "@/lib/items/palette";
+import { itemsOnPassage } from "@/lib/items/queries";
 import { readerPath, selectTranslations, translationParam } from "@/lib/reader-url";
 import { getDefaultTranslationId } from "@/lib/site";
-import { isSelected, parseSelection, studyVerse } from "@/lib/verse-selection";
+import { isSelected, nextSelection, parseSelection, studyVerse } from "@/lib/verse-selection";
 
 type Props = PageProps<"/read/[reference]">;
 
@@ -34,8 +43,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 // A passage: in one translation, or in two to four side by side when the `t`
-// parameter names more than one. With a verse selected (the `v` parameter)
-// the study panel opens on it. See src/lib/reader-url.ts for the URLs.
+// parameter names more than one. With verses selected (the `v` parameter)
+// the panel opens: the study of the first one and, for the owner, the form
+// that highlights them. The owner's highlights show on the verses they are
+// on, whichever translation is on show. See src/lib/reader-url.ts for the
+// URLs.
 export default async function PassagePage({ params, searchParams }: Props) {
   const typed = decode((await params).reference);
   const query = await searchParams;
@@ -64,8 +76,11 @@ export default async function PassagePage({ params, searchParams }: Props) {
   // One URL per passage: /read/jn3.16 goes to /read/john-3.16.
   const selection = parseSelection(first(query.v), ranges);
   const full = first(query.full);
+  // Highlights and everything for making them are the owner's alone.
+  const owner = await getOwner();
+  const add = owner !== null && selection.length > 0 && first(query.add) === "1";
   if (typed !== referenceSlug(ranges)) {
-    redirect(readerPath(ranges, canonicalT, { v: selection, full }));
+    redirect(readerPath(ranges, canonicalT, { v: selection, add, full }));
   }
 
   const reference = formatReference(ranges);
@@ -82,11 +97,49 @@ export default async function PassagePage({ params, searchParams }: Props) {
   // parallel view it quotes cross references from the first translation and
   // lists every translation's footnotes.
   const verseId = columns.length > 0 ? studyVerse(selection) : undefined;
-  const select = {
-    verseHref: (id: number) =>
-      readerPath(ranges, canonicalT, { v: [{ start: id, end: id }] }),
-    isSelected: (id: number) => isSelected(id, selection),
-  };
+  // A verse's number links to what a click on the verse does: select it
+  // alone or, while verses are being added, add or remove it.
+  const select = add
+    ? {
+        verseHref: (id: number) =>
+          readerPath(ranges, canonicalT, {
+            v: nextSelection(selection, id, "toggle", ranges),
+            add,
+          }),
+        isSelected: (id: number) => isSelected(id, selection),
+        verseLabel: (id: number) =>
+          isSelected(id, selection)
+            ? `Remove ${formatVerseId(id)} from the selection`
+            : `Add ${formatVerseId(id)} to the selection`,
+      }
+    : {
+        verseHref: (id: number) =>
+          readerPath(ranges, canonicalT, { v: [{ start: id, end: id }] }),
+        isSelected: (id: number) => isSelected(id, selection),
+      };
+
+  // The owner's highlights on the passage. A highlight is on verse ids, so
+  // it shows in every translation that has the verse.
+  const highlights = owner
+    ? await itemsOnPassage(db, { ownerId: owner.id, kind: "highlight", ranges })
+    : [];
+  const placed = placeHighlights(
+    highlights,
+    ranges,
+    columns.flatMap((column) => column.ranges.flat().map((record) => record.verseId)),
+  );
+  const marks = owner
+    ? {
+        highlight: placed.mark,
+        highlightNotes: (id: number) =>
+          placed.notes(id).map((note) => ({
+            id: note.id,
+            href: readerPath(ranges, canonicalT, { v: note.ranges }),
+            label: `Note on ${formatReference(note.ranges)}: ${note.note}`,
+            text: note.note,
+          })),
+      }
+    : {};
   let panel;
   if (verseId !== undefined) {
     // Footnotes carry the markers and anchors the passage prints them with.
@@ -112,6 +165,18 @@ export default async function PassagePage({ params, searchParams }: Props) {
         full={full}
         translation={columns[0].translation}
         footnotes={footnotes}
+        actions={
+          owner && (
+            <SelectionHighlights
+              ranges={ranges}
+              t={canonicalT}
+              selection={selection}
+              add={add}
+              translationId={columns[0].translation.id}
+              highlights={highlightsOn(highlights, selection)}
+            />
+          )
+        }
       />
     );
   }
@@ -127,7 +192,7 @@ export default async function PassagePage({ params, searchParams }: Props) {
               selected={selectedIds}
               defaultId={defaultId}
               path={readerPath(ranges)}
-              keep={readerPath(ranges, undefined, { v: selection }).split("?")[1]}
+              keep={readerPath(ranges, undefined, { v: selection, add }).split("?")[1]}
             />
           </div>
         )}
@@ -146,17 +211,59 @@ export default async function PassagePage({ params, searchParams }: Props) {
             Some translations leave out verses that others include; try another translation.
           </p>
         ) : (
-          <VerseSelect ranges={ranges} t={canonicalT} selection={selection}>
+          <VerseSelect ranges={ranges} t={canonicalT} selection={selection} add={add}>
             {parallel ? (
-              <ParallelPassage columns={columns} caption={reference} {...select} />
+              <ParallelPassage columns={columns} caption={reference} {...select} {...marks} />
             ) : (
               <Passage
                 translation={columns[0].translation}
                 ranges={columns[0].ranges}
                 {...select}
+                {...marks}
               />
             )}
           </VerseSelect>
+        )}
+
+        {placed.hidden.length > 0 && (
+          // Highlights with nothing to show them on: every verse they are on
+          // is one the translations on show leave out.
+          <aside
+            data-hidden-highlights
+            aria-label="Highlights on verses not shown"
+            className="mt-8 font-sans text-sm text-stone-600 dark:text-stone-400"
+          >
+            <p>
+              {placed.hidden.length === 1 ? "A highlight is" : "Highlights are"} on verses that{" "}
+              {parallel ? "these translations leave" : `the ${columns[0].translation.abbrev} leaves`}{" "}
+              out:
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {placed.hidden.map((highlight) => {
+                const on = intersectRanges(highlight.passages, ranges);
+                return (
+                  <li
+                    key={highlight.id}
+                    data-highlight={highlightColor(highlight.color)?.id}
+                    className="flex flex-wrap items-center gap-x-2"
+                  >
+                    <span aria-hidden="true" className="highlight-swatch" />
+                    <Link
+                      href={readerPath(ranges, canonicalT, { v: on })}
+                      scroll={false}
+                      className="font-medium text-stone-800 underline underline-offset-4 dark:text-stone-200"
+                    >
+                      {formatReference(on)}
+                    </Link>
+                    <span>
+                      {highlightColor(highlight.color)?.name}
+                      {highlight.note && `: ${highlight.note}`}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
         )}
       </div>
     </ReaderShell>

@@ -69,3 +69,26 @@ export function bookRange(book: number): VerseRange {
     end: chapterRange(book, chapters).end,
   };
 }
+
+// The verse after this one in reading order, crossing chapters and books;
+// undefined after the last verse of the canon. Ids are not consecutive
+// across a chapter boundary, so "next to" needs this rather than `id + 1`.
+export function nextVerseId(id: number): number | undefined {
+  const ref = parseVerseId(id);
+  if (!ref) throw new RangeError(`Not a verse id: ${id}`);
+  const book = bookByNumber(ref.book)!;
+  if (ref.verse < book.verseCounts[ref.chapter - 1]) return id + 1;
+  if (ref.chapter < book.verseCounts.length) {
+    return toVerseId({ book: ref.book, chapter: ref.chapter + 1, verse: 1 });
+  }
+  return bookByNumber(ref.book + 1) && toVerseId({ book: ref.book + 1, chapter: 1, verse: 1 });
+}
+
+// The verse before this one; undefined before Genesis 1:1.
+export function previousVerseId(id: number): number | undefined {
+  const ref = parseVerseId(id);
+  if (!ref) throw new RangeError(`Not a verse id: ${id}`);
+  if (ref.verse > 1) return id - 1;
+  if (ref.chapter > 1) return chapterRange(ref.book, ref.chapter - 1).end;
+  return bookByNumber(ref.book - 1) && bookRange(ref.book - 1).end;
+}

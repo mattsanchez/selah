@@ -43,6 +43,13 @@
       "when": 1791898869193,
       "tag": "0005_user_site",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791913844464,
+      "tag": "0006_items",
+      "breakpoints": true
     }
   ]
 }
