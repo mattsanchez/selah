@@ -61,9 +61,12 @@ function describe(report: FormattingReport): string {
 export async function fetchVerses(
   source: BibleSource,
   books?: readonly string[],
+  // Where downloads are kept; first boot keeps them in the data directory.
+  options: { cacheDir?: string; log?: (message: string) => void } = {},
 ): Promise<VerseRecord[]> {
-  const { translation, cached } = await fetchSource(source);
-  console.log(
+  const { log = console.log, ...cache } = options;
+  const { translation, cached } = await fetchSource(source, cache);
+  log(
     `${source.abbrev}: ${cached ? "cached" : "downloaded"}, checksum ${source.contentSha256.slice(0, 12)}… verified`,
   );
   const verses = normalizeTranslation(translation, {
@@ -75,8 +78,8 @@ export async function fetchVerses(
 
   const { formatting } = source;
   if (!formatting) return verses;
-  const usfm = await fetchFormatting({ ...source, formatting });
-  console.log(
+  const usfm = await fetchFormatting({ ...source, formatting }, cache);
+  log(
     `${source.abbrev}: formatting ${usfm.cached ? "cached" : "downloaded"}, checksum ${formatting.contentSha256.slice(0, 12)}… verified`,
   );
   const formatted = applyFormatting(
@@ -84,6 +87,6 @@ export async function fetchVerses(
     usfm.books.filter((book) => !books || books.includes(book.id)),
     { translationId: source.id, kind: formatting.kind },
   );
-  console.log(`${source.abbrev}: ${describe(formatted.report)}`);
+  log(`${source.abbrev}: ${describe(formatted.report)}`);
   return formatted.verses;
 }

@@ -1,4 +1,33 @@
+# `docker compose up` runs Selah and its database. See "Self-hosting" in the README.
+# For development, `docker compose up -d db` starts only Postgres.
+
 services:
+  app:
+    build: .
+    image: selah:local
+    init: true
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://selah:selah@db:5432/selah
+      # Everything below is optional; set them in a .env file beside this one.
+      SELAH_URL: ${SELAH_URL:-}
+      SELAH_PORT: ${SELAH_PORT:-3000}
+      SELAH_SECRET: ${SELAH_SECRET:-}
+      SELAH_SETUP_TOKEN: ${SELAH_SETUP_TOKEN:-}
+      SMTP_URL: ${SMTP_URL:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+    ports:
+      # Reachable from this machine only, unless SELAH_BIND says otherwise.
+      - "${SELAH_BIND:-127.0.0.1}:${SELAH_PORT:-3000}:3000"
+    volumes:
+      # The generated secret, the setup token and the downloaded Bible sources.
+      - app-data:/data
+
   db:
     image: pgvector/pgvector:pg16
     environment:
@@ -17,3 +46,4 @@ services:
 
 volumes:
   db-data:
+  app-data:

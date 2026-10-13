@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CACHE_DIR } from "@/lib/bible/import/download";
+import { CACHE_DIR, download } from "@/lib/bible/import/download";
 import { readZip } from "@/lib/bible/import/zip";
 
 import type { CommentarySource, StudyDownload } from "../sources";
@@ -38,6 +38,9 @@ export function tyndaleSha256(items: readonly TyndaleItem[]): string {
 }
 
 export class StudyChecksumError extends Error {
+  // The file that no longer matches its pin.
+  readonly url: string;
+
   constructor(source: StudyDownload, actual: string) {
     super(
       `Checksum mismatch for ${source.name} (${source.downloadUrl}).\n` +
@@ -47,6 +50,7 @@ export class StudyChecksumError extends Error {
         "then update the pin in src/lib/study/sources.ts.",
     );
     this.name = "StudyChecksumError";
+    this.url = source.downloadUrl;
   }
 }
 
@@ -75,11 +79,8 @@ async function fetchPinned<T>(
     return { content: cached, cached: true };
   }
 
-  const response = await fetchImpl(source.downloadUrl);
-  if (!response.ok) {
-    throw new Error(`Could not download ${source.downloadUrl}: HTTP ${response.status}`);
-  }
-  const bytes = new Uint8Array(await response.arrayBuffer());
+  // A DownloadError when the host is unreachable or answers with an error.
+  const bytes = await download([source.downloadUrl], fetchImpl);
   const content = parse(bytes);
   if (content === undefined) {
     throw new Error(`${source.downloadUrl} is not the archive ${source.name} is published in`);

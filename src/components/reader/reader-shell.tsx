@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { getSiteTitle } from "@/lib/site";
+
 import { ReferenceForm } from "./reference-form";
 
 type ReaderShellProps = {
@@ -14,7 +16,7 @@ type ReaderShellProps = {
 
 // The frame the reader and the search page share: the site name and the one
 // box for references and searches.
-export function ReaderShell({ form, wide = false, panel, children }: ReaderShellProps) {
+export async function ReaderShell({ form, wide = false, panel, children }: ReaderShellProps) {
   const main = (
     <main className={`mx-auto px-6 py-8 ${wide ? "max-w-6xl" : "max-w-2xl"}`}>
       <div className="mx-auto max-w-2xl">
@@ -22,7 +24,7 @@ export function ReaderShell({ form, wide = false, panel, children }: ReaderShell
           href="/"
           className="font-serif text-2xl tracking-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500"
         >
-          Selah
+          {await getSiteTitle()}
         </Link>
         <div className="mt-6">
           <ReferenceForm {...form} />

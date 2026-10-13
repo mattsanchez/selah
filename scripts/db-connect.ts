@@ -5,10 +5,13 @@ import { loadEnv } from "./load-env";
 
 // Opens a connection for a CLI script, waiting for Postgres to accept
 // connections: `docker compose up -d db` returns before the server is ready.
-export async function connect(timeoutMs = 60_000) {
+export async function connect(
+  timeoutMs = 60_000,
+  options: Parameters<typeof createDb>[1] = { max: 1 },
+) {
   loadEnv();
 
-  const connection = createDb(undefined, { max: 1 });
+  const connection = createDb(undefined, options);
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {

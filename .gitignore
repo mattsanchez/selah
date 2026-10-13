@@ -10,9 +10,19 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+playwright/.auth/
 
 # Downloaded Bible sources (`pnpm import:bible`); never committed
 .cache/
+
+# Created at run time: the generated secret, the setup token, first-boot downloads
+.data/
+
+# Written by `next dev`
+AGENTS.md
+
+# The bundled Docker entry point (`pnpm build:boot`)
+dist/
 
 # Local configuration; .env.example is the template
 .env
