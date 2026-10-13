@@ -278,10 +278,16 @@ describe("import failures", () => {
         { ...publisher, error: new StudyChecksumError(CROSS_REFERENCES, "0".repeat(64)) },
       ]);
     };
-    await expect(withDownloadRetries(mirrorDown, { delayMs: 0, log: () => {} })).rejects.toThrow(
-      SourcesFailedError,
-    );
+    const logged: string[] = [];
+    await expect(
+      withDownloadRetries(mirrorDown, { delayMs: 0, log: (message) => logged.push(message) }),
+    ).rejects.toThrow(SourcesFailedError);
     expect(tries).toBe(3);
+    // Both places' reasons, on one line.
+    expect(logged).toHaveLength(2);
+    expect(logged[0]).toContain("github.com");
+    expect(logged[0]).toContain("a.openbible.info");
+    expect(logged[0]).not.toContain("\n");
   });
 
   it("any other failure keeps its reason and says how to retry", () => {

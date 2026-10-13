@@ -117,7 +117,8 @@ export async function withDownloadRetries<T>(
       if (!isRetryable(error) || attempt >= attempts) throw error;
       // Wait a little longer each time.
       const wait = delayMs * attempt;
-      const reason = error instanceof Error ? error.message : String(error);
+      // One line, though a file asked for in two places has two reasons.
+      const reason = (error instanceof Error ? error.message : String(error)).replace(/\n\s*/g, "; ");
       log(`${reason}; trying again in ${wait / 1000}s (try ${attempt} of ${attempts} failed)`);
       await new Promise((resolve) => setTimeout(resolve, wait));
     }
