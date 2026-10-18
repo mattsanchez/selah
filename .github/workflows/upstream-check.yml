@@ -1,0 +1,79 @@
+name: Upstream check
+
+# Fetches every pinned source from its publisher, compares it with the pinned
+# copy in the data release, and files or updates one issue per source that
+# changed significantly. It changes no pin, fixture or mirror. See "Checking
+# upstream for changes" in the README.
+
+on:
+  schedule:
+    # Mondays at 06:17 UTC.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the issues it would file or update, and change nothing
+        type: boolean
+        default: false
+  # A change to the check itself is proved by a dry run against the real
+  # publishers.
+  pull_request:
+    paths:
+      - .github/workflows/upstream-check.yml
+      - scripts/data-check.ts
+      - src/lib/data-release/upstream-check/**
+
+concurrency:
+  group: upstream-check-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # To file, edit, comment on and close its own issues, and create their label.
+  issues: write
+  # To read the state the run before this one left as an artifact.
+  actions: read
+
+jobs:
+  check:
+    name: Compare the publishers' files with the pins
+    # A fork has no use for the weekly run.
+    if: github.event_name != 'schedule' || github.repository == 'mattsanchez/selah'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Since when each source has been unreachable, from the latest run that
+      # left it. Without one, every source starts from today.
+      - name: Restore the state of the run before
+        run: |
+          mkdir -p .cache/upstream-check
+          for run in $(gh run list --workflow upstream-check.yml --status completed --limit 10 --json databaseId --jq '.[].databaseId'); do
+            if gh run download "$run" --name upstream-check-state --dir .cache/upstream-check 2>/dev/null; then
+              echo "Restored the state of run $run"
+              break
+            fi
+          done
+
+      # Only the weekly run, and a run by hand that is not a dry run, file issues.
+      - name: Check every pinned source
+        run: pnpm data:check ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run)) && '--file-issues' || '' }}
+
+      - name: Keep the state for the next run
+        if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-check-state
+          path: .cache/upstream-check/state.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 90

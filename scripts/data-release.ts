@@ -1,11 +1,11 @@
-import { execFile } from "node:child_process";
 import path from "node:path";
 
 import { CACHE_DIR, describeOrigin, fetchPinnedFile } from "../src/lib/bible/import/download";
 import { DATA_RELEASE } from "../src/lib/bible/import/mirror";
 import { buildDataRelease } from "../src/lib/data-release/build";
 import { pinnedFiles } from "../src/lib/data-release/catalog";
-import { publishDataRelease, type Gh } from "../src/lib/data-release/publish";
+import { publishDataRelease } from "../src/lib/data-release/publish";
+import { gh } from "./gh";
 
 // Builds the data release named by DATA_RELEASE from the download cache and,
 // with --publish, publishes it on GitHub. See "Data releases" in the README.
@@ -22,14 +22,6 @@ if (unknown.length > 0) {
   console.error(`Unknown argument: ${unknown.join(" ")}\nUsage: pnpm data:release [--publish]`);
   process.exit(1);
 }
-
-const gh: Gh = (ghArgs) =>
-  new Promise((resolve) => {
-    execFile("gh", ghArgs, { maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
-      const code = error ? (typeof error.code === "number" ? error.code : 1) : 0;
-      resolve({ code, stdout, stderr: stderr || (error ? error.message : "") });
-    });
-  });
 
 try {
   const entries = pinnedFiles();
