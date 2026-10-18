@@ -25,6 +25,42 @@ export function clearTestOwnerItems(): Promise<void> {
     await sql`
       delete from item
       where owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+    await sql`
+      delete from tag
+      where owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}
+
+export type StoredItem = {
+  kind: string;
+  title: string | null;
+  markdown: string | null;
+  visibility: string;
+  publishedAt: Date | null;
+  // "start-end:translation", in reading order.
+  passages: string[];
+  // Slugs, in order.
+  tags: string[];
+};
+
+// One of the test owner's items as the database has it: what a journey
+// cannot see on a page that is the owner's alone.
+export function storedItem(id: string): Promise<StoredItem | undefined> {
+  return withDb(async (sql) => {
+    const rows = await sql<StoredItem[]>`
+      select kind, title, markdown, visibility, published_at as "publishedAt",
+        array(
+          select verse_start || '-' || verse_end || ':' || coalesce(translation_id, '')
+          from item_passage where item_id = item.id order by verse_start, verse_end
+        ) as passages,
+        array(
+          select tag.slug from item_tag join tag on tag.id = item_tag.tag_id
+          where item_tag.item_id = item.id order by tag.slug
+        ) as tags
+      from item
+      where id = ${id}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+    return rows[0];
   });
 }
 

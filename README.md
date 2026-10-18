@@ -6,7 +6,7 @@ Look up or search a passage, compare translations, study it with cross reference
 Inspired by Posterous, shaped like Ghost, built for Bible study.
 
 Status: pre-MVP. The product spec and milestones are in [docs/spec.md](docs/spec.md).
-You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account and verse highlights; the feed and AI come next.
+You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, and reflections and notes with tags and visibility; the public feed and AI come next.
 
 ## Self-hosting
 
@@ -398,6 +398,43 @@ The pieces, for anyone building on them:
 - `src/lib/verse-selection.ts` and `src/components/study/verse-select.tsx`: which verses are selected (the `v` parameter, a list of ranges) and the click handling that changes it.
 - `src/lib/study/queries.ts`: `getCrossReferences(db, range)` and `getCommentary(db, range)`, which `src/components/study/study-panel.tsx` renders.
 - `src/lib/site.ts`: the site settings, including the default translation.
+
+## Reflections, notes and sharing
+
+Everything the owner makes is an item: a highlight, a reflection or a note. All three have a visibility (private, unlisted, public), tags, and their passages in `item_passage`.
+All of it is the owner's alone for now: the public feed, permalinks and tag pages come with the next milestone.
+
+- **Share a highlight**: "Share", beside "Edit" on its card, makes it public; "Unshare" and "Make unlisted" are there afterwards.
+- **Reflect**: select verses in the reader and choose "Reflect". A draft opens at `/items/<id>/edit` with the passage embedded.
+- **Note**: "Note" in the reader posts a short item anchored to the selected verses; "Quick note" on `/items` posts one on no passage. A note is public unless you choose otherwise in the form.
+- **My items** (`/items`): every item of every kind, drafts included, as the feed will show it, with its visibility; narrowed by kind (`?kind=note`) or tag (`?tag=grace`).
+
+![The editor of a reflection, with its preview](docs/screenshots/reflection-editor.png)
+
+**Passage cards.** A reflection is Markdown. To embed a passage, put its reference in double brackets on a line of its own:
+
+```markdown
+[[John 3:16-18]]
+[[Romans 8:28-30 | KJV]]
+```
+
+The reference is anything the reader's box takes. The translation is the abbreviation or id of a loaded one; without it the card is in the site's default translation. The line must start at the margin; inside a fenced code block it is code. The card prints the verses (the first 1,500 characters or so of a long passage) with the reference, the translation and its attribution, and `item_passage` is rewritten from the cards on every save.
+
+**The editor** saves as you type: 0.8 seconds after the last keystroke, when a field loses focus, and on Ctrl/Cmd+S. Until the server has a change it is also kept in the browser's `localStorage`, so a reload in between loses nothing. The preview under the editor is the item as last saved.
+
+**Markdown** is CommonMark, rendered by [micromark](https://github.com/micromark/micromark) with its safe defaults: HTML in the Markdown is printed as text, and links and images with a `javascript:` or `data:` address lose the address.
+
+**Tags** are typed separated by commas. A tag keeps the name it was first typed with ("Holy Spirit") and is identified by a slug (`holy-spirit`: lower case, accents dropped, anything but letters and digits made a hyphen). Up to 10 on an item, 40 characters each; a tag that is on nothing is deleted.
+
+**Publishing.** `visibility` and `published_at` are written together, and the table has a check on it: an item is private exactly when `published_at` is null. Publishing sets the date once; switching between public and unlisted keeps it; unpublishing clears it.
+
+The pieces, for anyone building on them:
+
+- `src/lib/items/queries.ts`: `createItem`, `updateItem`, `saveItemContent`, `setVisibility`, `deleteItem`, `getItem`, `listItems` (filters: kind, color, tag, passage, dates), `itemsOnPassage`, `itemTags`, `listTags`, `taggedWith`. Every one takes the owner's id; a page for visitors needs its own condition on `visibility`.
+- `src/lib/items/cards.ts`: the card syntax. `parseDocument(markdown)`, `documentPassages(markdown, translations)`, `passageCard(ranges, translation?)`.
+- `src/lib/items/markdown.ts`: `renderMarkdown(markdown)` and `markdownExcerpt(markdown, limit?)`.
+- `src/lib/items/tags.ts`: `parseTags`, `normalizeTag`, `tagSlug`, `formatTags`.
+- `src/lib/items/feed.ts` and `src/components/items/feed-item.tsx`: `loadFeedEntries(db, items, { translations, defaultId })` reads the verses for a list of items, and `<FeedItem entry>` renders one of any kind. `<PassageCard>` is the card alone.
 
 ## Owner account and settings
 

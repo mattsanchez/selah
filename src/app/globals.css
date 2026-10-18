@@ -161,6 +161,66 @@
     @apply rounded-r-md border-l-4 bg-white py-3 pr-3 pl-4 font-sans dark:bg-stone-900;
     border-left-color: var(--hl-accent, var(--color-stone-300));
   }
+  /* An item of the feed (src/components/items/feed-item.tsx). A highlight's
+     color is the accent along its edge. */
+  .feed-item {
+    @apply rounded-r-md border-l-4 bg-white py-4 pr-4 pl-5 dark:bg-stone-900;
+    border-left-color: var(--hl-accent, var(--color-stone-300));
+  }
+  /* A passage quoted in an item. */
+  .passage-card {
+    @apply border-l-2 border-stone-300 pl-4 dark:border-stone-600;
+  }
+  .feed-item[data-highlight] .passage-card {
+    @apply border-l-0 pl-0;
+  }
+  /* Markdown, as src/lib/items/markdown.ts renders it. */
+  .item-prose {
+    @apply font-serif text-lg leading-8 text-stone-800 dark:text-stone-200;
+  }
+  .item-prose > * {
+    @apply my-4 first:mt-0 last:mb-0;
+  }
+  .item-prose :is(h1, h2, h3, h4, h5, h6) {
+    @apply mt-6 font-sans font-semibold tracking-tight text-stone-900 dark:text-stone-100;
+  }
+  .item-prose h1 {
+    @apply text-2xl;
+  }
+  .item-prose h2 {
+    @apply text-xl;
+  }
+  .item-prose :is(h3, h4, h5, h6) {
+    @apply text-lg;
+  }
+  .item-prose a {
+    @apply text-sky-700 underline decoration-sky-300 underline-offset-2 hover:decoration-sky-700 dark:text-sky-400 dark:decoration-sky-800;
+  }
+  .item-prose ul {
+    @apply list-disc pl-6;
+  }
+  .item-prose ol {
+    @apply list-decimal pl-6;
+  }
+  .item-prose blockquote {
+    @apply border-l-2 border-stone-300 pl-4 text-stone-700 italic dark:border-stone-600 dark:text-stone-300;
+  }
+  .item-prose code {
+    @apply rounded-sm bg-stone-100 px-1 py-0.5 font-mono text-[0.85em] dark:bg-stone-800;
+  }
+  .item-prose pre {
+    @apply overflow-x-auto rounded-md bg-stone-100 p-3 text-sm leading-6 dark:bg-stone-800;
+  }
+  .item-prose pre code {
+    @apply bg-transparent p-0;
+  }
+  .item-prose img {
+    @apply h-auto max-w-full rounded-md;
+  }
+  .item-prose hr {
+    @apply border-stone-300 dark:border-stone-700;
+  }
+
   /* One color of the palette in a form. */
   .highlight-choice {
     @apply inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-stone-300 bg-white pr-3 pl-2 text-sm select-none hover:bg-stone-50 has-[:checked]:border-stone-900 has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-stone-900)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:hover:bg-stone-800 dark:has-[:checked]:border-stone-100 dark:has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-stone-100)];
