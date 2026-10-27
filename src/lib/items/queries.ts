@@ -327,7 +327,15 @@ export type ItemFilter = {
   from?: string;
   to?: string;
   timeZone?: string;
+  // Only items whose title, text or note has these words in it, as typed
+  // (case aside). The editor's "My content" filter; M10 searches properly.
+  text?: string;
+  // Leaves this item out: the one being edited.
+  except?: string;
 };
+
+// A LIKE pattern for text as typed: % and _ are themselves.
+export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, "\\$&")}%`;
 
 function matches({
   ownerId,
@@ -338,6 +346,8 @@ function matches({
   from,
   to,
   timeZone = "UTC",
+  text,
+  except,
 }: ItemFilter): SQL {
   const day = sql`(${item.createdAt} at time zone ${timeZone})::date`;
   return and(
@@ -348,6 +358,10 @@ function matches({
     ranges && onPassage(ranges),
     from ? sql`${day} >= ${from}::date` : undefined,
     to ? sql`${day} <= ${to}::date` : undefined,
+    text?.trim()
+      ? sql`(${item.title} ilike ${containsPattern(text.trim())} or ${item.markdown} ilike ${containsPattern(text.trim())} or ${item.note} ilike ${containsPattern(text.trim())})`
+      : undefined,
+    except ? sql`${item.id} <> ${except}` : undefined,
   )!;
 }
 

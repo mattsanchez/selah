@@ -2,15 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { createReflectionAction } from "@/app/items/actions";
 import { FeedItem } from "@/components/items/feed-item";
-import { NoteForm } from "@/components/items/note-form";
 import { ShareControls } from "@/components/items/share-controls";
 import { ReaderShell } from "@/components/reader/reader-shell";
 import { getDb } from "@/db/client";
 import { requireOwner } from "@/lib/auth/owner";
 import { listTranslations } from "@/lib/bible/passage";
-import { ITEMS_PAGE_SIZE, editItemPath, itemsPath, parseItemFilters } from "@/lib/items-url";
+import { ITEMS_PAGE_SIZE, editItemPath, itemsPath, parseItemFilters, writePath } from "@/lib/items-url";
 import { loadFeedEntries } from "@/lib/items/feed";
 import { listItems, listTags, type ItemKind } from "@/lib/items/queries";
 import { readerPath } from "@/lib/reader-url";
@@ -44,8 +42,8 @@ const chipOn =
 
 // "My items": everything the owner has made, of every kind, newest first,
 // drafts and private items included, each as it shows in the feed, with its
-// visibility and the way to edit it. Also where a note on no passage and a
-// reflection on no passage are started. See src/lib/items-url.ts for the URLs.
+// visibility and the way to edit it. Also where a new post or a quick note
+// is started. See src/lib/items-url.ts for the URLs.
 export default async function ItemsPage({ searchParams }: Props) {
   const params = await searchParams;
   const filters = parseItemFilters({
@@ -84,20 +82,20 @@ export default async function ItemsPage({ searchParams }: Props) {
           Your highlights, reflections and notes, drafts included. Only you can see this page.
         </p>
 
-        <section aria-labelledby="new-note" className="mt-6 font-sans">
-          <h2 id="new-note" className="mb-3 text-sm font-semibold">
+        <section aria-label="Write" className="mt-6 flex flex-wrap items-center gap-3 font-sans">
+          <Link
+            href={writePath()}
+            className="inline-flex h-10 items-center rounded-md bg-stone-900 px-4 text-sm font-medium text-stone-50 hover:bg-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300"
+          >
+            New post
+          </Link>
+          <Link
+            href={writePath({ kind: "note", back: itemsPath() })}
+            className="inline-flex h-10 items-center rounded-md border border-stone-300 px-4 text-sm font-medium hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 dark:border-stone-700 dark:hover:bg-stone-800"
+          >
             Quick note
-          </h2>
-          <NoteForm />
-          <form action={createReflectionAction} className="mt-4">
-            <p className={`text-sm ${muted}`}>
-              Or{" "}
-              <button type="submit" className={`cursor-pointer ${link}`}>
-                start a reflection
-              </button>
-              . To write about a passage, select its verses in the reader.
-            </p>
-          </form>
+          </Link>
+          <p className={`text-sm ${muted}`}>To write about a passage, select its verses in the reader.</p>
         </section>
 
         <div className="mt-8 space-y-3 font-sans">

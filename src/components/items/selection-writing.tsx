@@ -4,11 +4,10 @@ import { createReflectionAction } from "@/app/items/actions";
 import { Button } from "@/components/ui/button";
 import { formatReference, referenceSlug } from "@/lib/bible/reference";
 import type { VerseRange } from "@/lib/bible/verse-id";
-import { editItemPath } from "@/lib/items-url";
+import { editItemPath, writePath } from "@/lib/items-url";
 import { markdownExcerpt } from "@/lib/items/markdown";
 import type { Item } from "@/lib/items/queries";
-
-import { NoteForm } from "./note-form";
+import { readerPath } from "@/lib/reader-url";
 
 type SelectionWritingProps = {
   // The page and the selection, as <SelectionHighlights> has them.
@@ -23,8 +22,9 @@ type SelectionWritingProps = {
 const VISIBILITY = { private: "Private", unlisted: "Unlisted", public: "Public" } as const;
 
 // Writing about the selected verses, in the reader's panel: "Reflect" starts
-// a reflection with the passage embedded, "Note" posts a short item anchored
-// to it, and what the owner has already written on these verses is listed.
+// a reflection with the passage embedded and opens it in the editor, "Note"
+// opens the editor's note form on these verses (back here once posted), and
+// what the owner has already written on these verses is listed.
 // Rendered for the signed-in owner only.
 export function SelectionWriting({
   ranges,
@@ -44,22 +44,27 @@ export function SelectionWriting({
         Write
       </h3>
 
-      <form action={createReflectionAction}>
-        <input type="hidden" name="v" value={v} />
-        <input type="hidden" name="translationId" value={translationId} />
-        <Button type="submit" aria-label={`Reflect on ${reference}`}>
-          Reflect
-        </Button>
-      </form>
-
-      <details data-note-form className="mt-3">
-        <summary className="cursor-pointer text-sm font-medium text-stone-700 underline-offset-4 hover:underline dark:text-stone-200">
+      <div className="flex flex-wrap items-center gap-2">
+        <form action={createReflectionAction}>
+          <input type="hidden" name="v" value={v} />
+          <input type="hidden" name="translationId" value={translationId} />
+          <Button type="submit" aria-label={`Reflect on ${reference}`}>
+            Reflect
+          </Button>
+        </form>
+        <Link
+          href={writePath({
+            kind: "note",
+            v,
+            tr: translationId,
+            back: readerPath(ranges, t, { v: selection }),
+          })}
+          aria-label={`Note on ${reference}`}
+          className="inline-flex h-10 items-center rounded-md border border-stone-300 px-4 text-sm font-medium hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 dark:border-stone-700 dark:hover:bg-stone-800"
+        >
           Note
-        </summary>
-        <div role="group" aria-label={`Note on ${reference}`} className="mt-3">
-          <NoteForm anchor={{ v, p: referenceSlug(ranges), t, translationId }} />
-        </div>
-      </details>
+        </Link>
+      </div>
 
       {written.length > 0 && (
         <ul aria-label={`Written on ${reference}`} className="mt-5 space-y-2">

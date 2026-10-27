@@ -404,14 +404,27 @@ The pieces, for anyone building on them:
 Everything the owner makes is an item: a highlight, a reflection or a note. All three have a visibility (private, unlisted, public), tags, and their passages in `item_passage`.
 All of it is the owner's alone for now: the public feed, permalinks and tag pages come with the next milestone.
 
+- **Write**: "New post" in the owner bar, on every page, opens the editor at `/write`; "New note" opens it as a note (`/write?kind=note`). Nothing is made until something is written; the first save makes the item and the address becomes `/items/<id>/edit`.
 - **Share a highlight**: "Share", beside "Edit" on its card, makes it public; "Unshare" and "Make unlisted" are there afterwards.
-- **Reflect**: select verses in the reader and choose "Reflect". A draft opens at `/items/<id>/edit` with the passage embedded.
-- **Note**: "Note" in the reader posts a short item anchored to the selected verses; "Quick note" on `/items` posts one on no passage. A note is public unless you choose otherwise in the form.
+- **Reflect**: select verses in the reader and choose "Reflect". A draft opens in the editor with the passage in it.
+- **Note**: "Note" in the reader opens the editor's note form on the selected verses, and comes back to them once posted; "Quick note" on `/items` opens one on no passage. A note's "Post" makes it public unless you choose unlisted; until then it is a private draft.
 - **My items** (`/items`): every item of every kind, drafts included, as the feed will show it, with its visibility; narrowed by kind (`?kind=note`) or tag (`?tag=grace`).
 
-![The editor of a reflection, with its preview](docs/screenshots/reflection-editor.png)
+![The editor, with the study sidebar open](docs/screenshots/post-editor.png)
 
-**Passage cards.** A reflection is Markdown. To embed a passage, put its reference in double brackets on a line of its own:
+**The editor** is the page: the title and the text in one column, written as rich text (no Markdown on screen). Format with Markdown shortcuts as you type (`## `, `> `, `- `, `1. `, `**bold**`, `*italic*`, `---`) or with the toolbar over selected text (bold, italic, link, heading, subheading, quote). Type `/` on a line, or click the "+" beside an empty one, for headings, lists, quotes, separators, images (by address) and passages; `/john 3:16` or `/ps 23 kjv` inserts that passage. "Publish" (a note's "Post") says who may see it; tags and "Delete" are under the settings button. The owner bar steps aside while the editor is open.
+
+A **passage** in a post is a block that prints the verses as readers see them, with the translation and its attribution. Hover it (on a phone it always shows) to change its translation, move it up or down, drag it, or remove it; it is undone and redone whole.
+
+The **study sidebar** (the "Study" button; it stays open or closed in this browser) has:
+
+- **Read**: any reference the reader takes, in any translation; click a verse to select it, Shift-click to select through to another, Ctrl/Cmd-click to add or remove one, then "Insert" puts the selection (or the whole passage) where the cursor is. Previous and next chapter below.
+- **Search**: keyword search of the Bible in the sidebar's translation; each verse can be inserted or read in context.
+- **My content**: your highlights, notes and reflections, newest first, narrowed by words, tag and passage. A highlight goes in as its passage; a note or a reflection as a link to it (`/items/<id>`).
+
+On a phone the sidebar is a sheet over the post, and closes once something is inserted.
+
+**Passage cards.** A reflection is stored as Markdown, and a passage in it as a card: its reference in double brackets on a line of its own. The editor writes and reads these for you; anything written by hand opens in the editor as the same blocks.
 
 ```markdown
 [[John 3:16-18]]
@@ -420,7 +433,7 @@ All of it is the owner's alone for now: the public feed, permalinks and tag page
 
 The reference is anything the reader's box takes. The translation is the abbreviation or id of a loaded one; without it the card is in the site's default translation. The line must start at the margin; inside a fenced code block it is code. The card prints the verses (the first 1,500 characters or so of a long passage) with the reference, the translation and its attribution, and `item_passage` is rewritten from the cards on every save.
 
-**The editor** saves as you type: 0.8 seconds after the last keystroke, when a field loses focus, and on Ctrl/Cmd+S. Until the server has a change it is also kept in the browser's `localStorage`, so a reload in between loses nothing. The preview under the editor is the item as last saved.
+**Saving** happens as you type: 0.8 seconds after the last keystroke, when a field loses focus, and on Ctrl/Cmd+S, one save at a time. Until the server has a change it is also kept in the browser's `localStorage`, so a reload in between loses nothing. `src/lib/items/editor-document.ts` converts the editor's document to the stored Markdown and back with the same CommonMark parser as the public pages; the round trip is exact for everything the editor makes.
 
 **Markdown** is CommonMark, rendered by [micromark](https://github.com/micromark/micromark) with its safe defaults: HTML in the Markdown is printed as text, and links and images with a `javascript:` or `data:` address lose the address.
 
@@ -435,6 +448,9 @@ The pieces, for anyone building on them:
 - `src/lib/items/markdown.ts`: `renderMarkdown(markdown)` and `markdownExcerpt(markdown, limit?)`.
 - `src/lib/items/tags.ts`: `parseTags`, `normalizeTag`, `tagSlug`, `formatTags`.
 - `src/lib/items/feed.ts` and `src/components/items/feed-item.tsx`: `loadFeedEntries(db, items, { translations, defaultId })` reads the verses for a list of items, and `<FeedItem entry>` renders one of any kind. `<PassageCard>` is the card alone.
+- `src/lib/items/editor-document.ts`: `markdownToDoc(markdown, { passages? })` and `docToMarkdown(doc)`, the editor's document to and from the stored Markdown.
+- `src/components/editor/`: the editor. `post-editor.tsx` is the page; `passage-node.tsx` the passage block, with the command `editor.commands.insertPassage({ reference, translation })` that puts one where the cursor is; `study-sidebar.tsx` the sidebar, whose tabs are the entries of `STUDY_TABS` (a panel gets a `bridge` with `insertPassage(reference, translation)`, `insertLink(text, href)` and `read(reference)`). The sidebar's data comes from `src/app/api/editor/` (`passage`, `search`, `items`), owner only.
+- `src/lib/items-url.ts`: `writePath({ kind, v, tr, back })` for the editor, `itemLinkPath(id)` for a link to an item.
 
 ## Owner account and settings
 

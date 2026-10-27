@@ -43,6 +43,8 @@ test.describe("the signed-in owner", () => {
       const bar = page.getByRole("navigation", { name: "Owner" });
       await expect(bar).toContainText(`Signed in as ${TEST_OWNER.email}`);
       await expect(bar.getByRole("link", { name: "Settings" })).toBeVisible();
+      await expect(bar.getByRole("link", { name: "New post" })).toHaveAttribute("href", "/write");
+      await expect(bar.getByRole("link", { name: "New note" })).toHaveAttribute("href", "/write?kind=note");
     }
   });
 

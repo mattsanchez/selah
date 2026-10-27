@@ -282,7 +282,11 @@ function Notes({
 
 // The translation's attribution, as its `translation` row words it. Shown
 // wherever the translation's text is.
-export function Attribution({ translation }: { translation: Translation }) {
+export function Attribution({
+  translation,
+}: {
+  translation: Pick<Translation, "id" | "attribution" | "sourceUrl">;
+}) {
   return (
     <p
       data-attribution={translation.id}
@@ -297,6 +301,32 @@ export function Attribution({ translation }: { translation: Translation }) {
         Source
       </a>
     </p>
+  );
+}
+
+// The verses as a quote: numbers, paragraphs, lines of poetry and red
+// letters, without footnotes, and without headings unless asked. What a
+// passage block shows in the editor and what its study sidebar reads; the
+// caller prints the attribution.
+export function PassageQuote({
+  ranges,
+  headings = false,
+  ...verses
+}: VerseSelection &
+  VerseHighlights & {
+    ranges: readonly (readonly VerseRecord[])[];
+    headings?: boolean;
+  }) {
+  const text = (inlines: Inline[]) => inlines.filter((inline) => inline.type === "text");
+  const blocks = layoutPassage(ranges).blocks.flatMap((block): Block[] => {
+    if (block.type === "heading") return headings ? [{ ...block, inlines: text(block.inlines) }] : [];
+    if (block.type !== "paragraph") return [block];
+    return [{ ...block, parts: block.parts.map((part) => ({ ...part, inlines: text(part.inlines) })) }];
+  });
+  return (
+    <div className="passage-text">
+      <Blocks blocks={blocks} idPrefix="quote" {...verses} />
+    </div>
   );
 }
 
