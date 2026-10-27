@@ -1,6 +1,13 @@
 import postgres from "postgres";
 
 import { loadEnv } from "../scripts/load-env";
+import { createDb } from "../src/db/client";
+import {
+  createItem,
+  setVisibility,
+  type ItemVisibility,
+  type NewItem,
+} from "../src/lib/items/queries";
 import { databaseUrl } from "../src/lib/env";
 import { TEST_OWNER } from "../src/db/seed/test-owner";
 
@@ -94,4 +101,27 @@ export function setItemMarkdown(id: string, markdown: string): Promise<void> {
       where id = ${id}
         and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
   });
+}
+
+export type OwnerItem = Omit<NewItem, "ownerId">;
+
+// Makes one item for the test owner with the app's own functions, as the
+// pages do: created private, then given its visibility the way "Share" and
+// "Publish" give it (setVisibility). Returns its id. For journeys about what
+// is done with items rather than how they are written.
+export async function createOwnerItem(
+  input: OwnerItem,
+  visibility: ItemVisibility = "private",
+): Promise<string> {
+  loadEnv();
+  const { db, client } = createDb(databaseUrl(), { max: 1 });
+  try {
+    const [owner] = await client<{ id: string }[]>`
+      select id from "user" where email = ${TEST_OWNER.email}`;
+    const id = await createItem(db, { ...input, ownerId: owner.id, visibility: "private" });
+    if (visibility !== "private") await setVisibility(db, { ownerId: owner.id, id }, visibility);
+    return id;
+  } finally {
+    await client.end();
+  }
 }

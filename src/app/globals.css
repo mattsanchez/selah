@@ -341,6 +341,68 @@
     @apply rounded-md border-l-[3px] bg-white py-2 pr-2 pl-3 dark:bg-stone-900;
     border-left-color: var(--hl-accent, var(--color-stone-300));
   }
+  /* The public site's theme (src/app/(site)/layout.tsx): one calm column of
+     serif type, items set apart by space and a hairline rather than boxes,
+     passages set like scripture. It restyles the same components the owner's
+     pages use (<FeedItem>, <PassageCard>, <Passage>), inside `.site` only. */
+  .site {
+    --font-serif: var(--font-site-serif), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+    @apply flex min-h-screen flex-col bg-[#fcfbf8] dark:bg-stone-950;
+  }
+  .site-column {
+    @apply mx-auto w-full max-w-[42rem] px-5 sm:px-6;
+  }
+  .site-masthead {
+    @apply border-b border-stone-200 pt-10 pb-7 sm:pt-16 sm:pb-10 dark:border-stone-800;
+  }
+  .site-main {
+    @apply flex-1 py-10 sm:py-14;
+  }
+  .site-new-post {
+    @apply inline-flex h-11 items-center rounded-full bg-stone-900 px-6 font-sans text-sm font-semibold text-stone-50 shadow-sm hover:bg-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300;
+  }
+  .site-page-header {
+    @apply mb-12;
+  }
+  .site-kicker {
+    @apply font-sans text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase dark:text-stone-400;
+  }
+  .site-page-title {
+    @apply mt-2 font-serif text-4xl leading-tight font-semibold tracking-tight text-balance sm:text-5xl;
+  }
+  .site-section-title {
+    @apply font-serif text-2xl font-semibold tracking-tight;
+  }
+  .site-page-meta {
+    @apply mt-3 font-sans text-sm text-stone-600 dark:text-stone-400;
+  }
+  .site-page-meta a {
+    @apply underline underline-offset-4 hover:text-stone-900 dark:hover:text-stone-100;
+  }
+  .site-empty {
+    @apply mx-auto w-full max-w-[42rem] px-5 font-sans text-stone-600 sm:px-6 dark:text-stone-400;
+  }
+  .site-feed {
+    @apply mx-auto w-full max-w-[42rem] px-5 sm:px-6;
+  }
+  .site-feed > li + li {
+    @apply mt-12 border-t border-stone-200 pt-12 dark:border-stone-800;
+  }
+  .site-permalink {
+    @apply mx-auto w-full max-w-[42rem] px-5 sm:px-6;
+  }
+  .site-scripture {
+    @apply border-y border-stone-200 py-8 dark:border-stone-800;
+  }
+  .site-scripture .passage-text {
+    @apply text-[1.1875rem] leading-[1.75] sm:text-xl sm:leading-[1.85];
+  }
+  .site-footer {
+    @apply mt-16 border-t border-stone-200 py-10 font-sans text-xs leading-5 text-stone-500 dark:border-stone-800 dark:text-stone-400;
+  }
+  .site-footer-heading {
+    @apply mb-1.5 font-sans text-xs font-semibold tracking-[0.14em] text-stone-500 uppercase dark:text-stone-400;
+  }
 
   /* One color of the palette in a form. */
   .highlight-choice {
@@ -375,4 +437,51 @@
   .study-html .ref a {
     @apply text-inherit no-underline;
   }
+}
+
+/* The theme's changes to the components it shares with the owner's pages.
+   Outside any layer, so they win over the utilities those components carry. */
+/* Items, in the theme: no card, the kind and date above, the title large. */
+.site .feed-item {
+  @apply rounded-none border-l-0 bg-transparent p-0 dark:bg-transparent;
+}
+.site .feed-item[data-highlight] {
+  @apply border-l-4 pl-5 sm:pl-6;
+}
+.site .feed-item [data-feed-title] {
+  @apply mt-3 text-[1.75rem] leading-tight font-semibold text-balance sm:text-3xl;
+}
+.site .site-permalink .feed-item h1[data-feed-title] {
+  @apply text-4xl sm:text-5xl;
+}
+.site .feed-item [data-feed-body] {
+  @apply mt-5 space-y-6;
+}
+.site .item-prose {
+  @apply text-[1.125rem] leading-[1.8] sm:text-[1.1875rem];
+}
+.site .feed-item [data-feed-note] {
+  @apply mt-4 font-serif text-[1.125rem] leading-8 italic sm:text-[1.1875rem];
+}
+.site .feed-item [data-attribution] {
+  @apply mt-4;
+}
+/* A passage, set like scripture: larger type, the reference in small
+   capitals under it. */
+.site .passage-card {
+  @apply border-l-2 border-stone-300 pl-5 dark:border-stone-700;
+}
+.site .passage-card blockquote {
+  @apply text-[1.125rem] leading-[1.7] sm:text-xl sm:leading-[1.85];
+}
+.site .passage-card figcaption {
+  @apply mt-3 tracking-[0.06em];
+  font-variant-caps: all-small-caps;
+  font-size: 1rem;
+}
+.site .feed-item[data-highlight] .passage-card {
+  @apply border-l-0 pl-0;
+}
+.site .feed-item[data-highlight] .passage-card blockquote {
+  @apply text-[1.1875rem] leading-[1.7] sm:text-[1.375rem] sm:leading-[1.75];
 }

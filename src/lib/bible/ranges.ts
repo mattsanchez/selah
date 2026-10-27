@@ -1,4 +1,5 @@
-import { nextVerseId, previousVerseId, type VerseRange } from "./verse-id";
+import { bookByNumber } from "./books";
+import { nextVerseId, parseVerseId, previousVerseId, type VerseRange } from "./verse-id";
 
 // Arithmetic on lists of verse ranges: what the verse selection and the
 // passages of an item are made of. A range is inclusive, and both of its ends
@@ -58,4 +59,27 @@ export function removeVerse(ranges: readonly VerseRange[], verseId: number): Ver
       ];
     }),
   );
+}
+
+// How many verses of the canonical versification the ranges hold, counting a
+// verse in two of them twice.
+export function countVerses(ranges: readonly VerseRange[]): number {
+  let count = 0;
+  for (const { start, end } of ranges) {
+    const from = parseVerseId(start);
+    const to = parseVerseId(end);
+    if (!from || !to) continue;
+    for (let book = from.book; book <= to.book; book++) {
+      const chapters = bookByNumber(book)?.verseCounts ?? [];
+      const firstChapter = book === from.book ? from.chapter : 1;
+      const lastChapter = book === to.book ? to.chapter : chapters.length;
+      for (let chapter = firstChapter; chapter <= lastChapter; chapter++) {
+        const first = book === from.book && chapter === from.chapter ? from.verse : 1;
+        const last =
+          book === to.book && chapter === to.chapter ? to.verse : (chapters[chapter - 1] ?? 0);
+        count += Math.max(0, last - first + 1);
+      }
+    }
+  }
+  return count;
 }

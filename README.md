@@ -6,7 +6,7 @@ Look up or search a passage, compare translations, study it with cross reference
 Inspired by Posterous, shaped like Ghost, built for Bible study.
 
 Status: pre-MVP. The product spec and milestones are in [docs/spec.md](docs/spec.md).
-You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, and reflections and notes with tags and visibility; the public feed and AI come next.
+You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, reflections and notes with tags and visibility, and the public site with its feeds; AI comes next.
 
 ## Self-hosting
 
@@ -402,7 +402,7 @@ The pieces, for anyone building on them:
 ## Reflections, notes and sharing
 
 Everything the owner makes is an item: a highlight, a reflection or a note. All three have a visibility (private, unlisted, public), tags, and their passages in `item_passage`.
-All of it is the owner's alone for now: the public feed, permalinks and tag pages come with the next milestone.
+Public items are on the [public site](#public-site); unlisted ones only at their permalink; private ones are the owner's alone.
 
 - **Write**: "New post" in the owner bar, on every page, opens the editor at `/write`; "New note" opens it as a note (`/write?kind=note`). Nothing is made until something is written; the first save makes the item and the address becomes `/items/<id>/edit`.
 - **Share a highlight**: "Share", beside "Edit" on its card, makes it public; "Unshare" and "Make unlisted" are there afterwards.
@@ -443,7 +443,7 @@ The reference is anything the reader's box takes. The translation is the abbrevi
 
 The pieces, for anyone building on them:
 
-- `src/lib/items/queries.ts`: `createItem`, `updateItem`, `saveItemContent`, `setVisibility`, `deleteItem`, `getItem`, `listItems` (filters: kind, color, tag, passage, dates), `itemsOnPassage`, `itemTags`, `listTags`, `taggedWith`. Every one takes the owner's id; a page for visitors needs its own condition on `visibility`.
+- `src/lib/items/queries.ts`: `createItem`, `updateItem`, `saveItemContent`, `setVisibility`, `deleteItem`, `getItem`, `listItems` (filters: kind, color, tag, passage, dates), `itemsOnPassage`, `itemTags`, `listTags`, `taggedWith`. Every one takes the owner's id; pages for visitors read items through `src/lib/items/public.ts` instead (see [Public site](#public-site)).
 - `src/lib/items/cards.ts`: the card syntax. `parseDocument(markdown)`, `documentPassages(markdown, translations)`, `passageCard(ranges, translation?)`.
 - `src/lib/items/markdown.ts`: `renderMarkdown(markdown)` and `markdownExcerpt(markdown, limit?)`.
 - `src/lib/items/tags.ts`: `parseTags`, `normalizeTag`, `tagSlug`, `formatTags`.
@@ -451,6 +451,29 @@ The pieces, for anyone building on them:
 - `src/lib/items/editor-document.ts`: `markdownToDoc(markdown, { passages? })` and `docToMarkdown(doc)`, the editor's document to and from the stored Markdown.
 - `src/components/editor/`: the editor. `post-editor.tsx` is the page; `passage-node.tsx` the passage block, with the command `editor.commands.insertPassage({ reference, translation })` that puts one where the cursor is; `study-sidebar.tsx` the sidebar, whose tabs are the entries of `STUDY_TABS` (a panel gets a `bridge` with `insertPassage(reference, translation)`, `insertLink(text, href)` and `read(reference)`). The sidebar's data comes from `src/app/api/editor/` (`passage`, `search`, `items`), owner only.
 - `src/lib/items-url.ts`: `writePath({ kind, v, tr, back })` for the editor, `itemLinkPath(id)` for a link to an item.
+
+## Public site
+
+What a visitor sees, with no account: the writer's items in one calm column of serif type, set in [Source Serif 4](https://github.com/adobe-fonts/source-serif) (served by the site itself), good on a phone.
+
+| Address | What it is |
+| :--- | :--- |
+| `/` | The feed: public items of every kind, newest first, ten to a page (`/?page=2`). The signed-in owner also gets "New post". |
+| `/p/<slug>-<key>` | One item's permalink, e.g. `/p/no-condemnation-3f9a2c1b7d4e` or `/p/romans-8-38-39-c790edf191bc`. |
+| `/tag/<slug>` | The public items with a tag. |
+| `/passage/<reference>` | The passage in the default translation, then every public item on verses that overlap it: `/passage/romans-8` lists an item on Romans 8:28 and one on Romans 7:24-8:2. Any reference the reader takes works (`/passage/rom-8`, `/passage/john-3-16-21`) and redirects to the reader's spelling. |
+| `/rss.xml`, `/atom.xml` | RSS 2.0 and Atom feeds of the latest 20 public items, with their full content, verses and attributions. Every tag and passage page has its own: `/tag/grace/rss.xml`, `/passage/romans-8/atom.xml`. |
+| `/sitemap.xml`, `/robots.txt` | For search engines: the public items, tags and passages. |
+
+**Permalinks.** The key is the first twelve hex digits of the item's id, so it never changes; the slug before it is for people (a reflection's title, a note's first words, a highlight's reference). A permalink with an old slug, or with the key alone, redirects to the current one.
+
+**Who sees what.** Public items are listed everywhere above. Unlisted items open at their permalink, carry `noindex`, and are in no list, feed or sitemap. Private items are not found for anyone but the owner, who sees them at their permalink marked private. The owner's own queries in `src/lib/items/queries.ts` never serve these pages; `src/lib/items/public.ts` does, with the condition on `visibility` in one place (`listed()`, `reachable()`).
+
+**Sharing.** Every public page has Open Graph and Twitter card tags and an image beside it (`/p/<key>/og.png`, `/passage/romans-8/og.png`, `/tag/grace/og.png`, `/og.png`). A shared highlight previews as the verse, with its reference, translation and color; a reflection as its title and first words. The images are drawn on the server from the font files in `src/fonts`, with no request anywhere else: characters the font does not have (emoji, scripts other than Latin, Greek and Cyrillic) are left out of the image rather than fetched. Absolute URLs use `SELAH_URL` when it is set, otherwise the address the request came to.
+
+**Attribution.** Every passage on a page, in a feed entry or in a card credits its translation, and the footer of every public page lists each data source with its license.
+
+The pieces: `src/lib/public-url.ts` (the addresses, `permalinkPath`, `itemHeadline`, `parsePassage`), `src/lib/items/public.ts` (`listPublicItems`, `findByKey`, `publicTag`, `publicTags`), `src/lib/public-feed.ts` (entries, feeds, OG cards), `src/lib/syndication.ts` (RSS and Atom), `src/lib/og/` (images), `src/components/site/` and `src/app/(site)/` (the theme and its pages).
 
 ## Owner account and settings
 

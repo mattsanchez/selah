@@ -11,8 +11,8 @@ import { clickVerse, panel, verse } from "./reader";
 // quick item. The rich editor with autosave, tags, visibility (the editor's
 // own journey is e2e/editor.spec.ts).
 //
-// The public feed is a later journey; here the owner sees their items, as
-// the feed will show them, in "My items", and nobody else sees anything.
+// Here the owner sees their items, as the feed shows them, in "My items";
+// what a visitor sees of the public ones is journey 9 (e2e/public-site.spec.ts).
 //
 // Like the other specs on the fixture server, each test works on passages of
 // its own and finds its own items.
@@ -285,8 +285,9 @@ test.describe("the signed-in owner", () => {
     await expect(visitorPage.getByRole("link", { name: "New post" })).toHaveCount(0);
     await expect(visitorPage.getByRole("link", { name: "My items" })).toHaveCount(0);
     expect(await visitorPage.content()).not.toContain("Stillness is");
-    // Published or not, nothing of the owner's is on the pages a visitor has.
-    for (const path of ["/", "/read/romans-1.16-17", "/read/john-15.4-5"]) {
+    // Published or not, nothing of the owner's is in the reader a visitor
+    // has. (The public site lists public items: journey 9.)
+    for (const path of ["/read/romans-1.16-17", "/read/john-15.4-5"]) {
       await visitorPage.goto(path);
       const html = await visitorPage.content();
       expect(html).not.toContain("Not ashamed");

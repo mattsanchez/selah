@@ -15,9 +15,14 @@ export function renderMarkdown(markdown: string): string {
 
 // The words alone, on one line, cut to about `limit` characters: for lists.
 export function markdownExcerpt(markdown: string, limit = 160): string {
-  const text = decodeEntities(renderMarkdown(markdown).replace(/<[^>]+>/g, " "))
-    .replace(/\s+/g, " ")
-    .trim();
+  // A block ends a word; an inline tag ("<strong>") does not.
+  const html = renderMarkdown(markdown)
+    .replace(/<\/?(?:p|h[1-6]|li|ul|ol|blockquote|pre|br|hr|table|tr|td|th)\b[^>]*>/g, " ")
+    .replace(/<[^>]+>/g, "");
+  const text = decodeEntities(html).replace(/\s+/g, " ").trim();
   if (text.length <= limit) return text;
-  return `${text.slice(0, limit).replace(/\s+\S*$/, "")}…`;
+  return `${text
+    .slice(0, limit)
+    .replace(/\s+\S*$/, "")
+    .replace(/[\s,;:—–-]+$/, "")}…`;
 }

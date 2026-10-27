@@ -11,9 +11,9 @@ import type { TagName } from "./tags";
 // asking: the pages and server actions that call them get `ownerId` from
 // getOwner() or requireOwner() (src/lib/auth/owner.ts) and from nowhere else.
 //
-// Nothing here is public yet. When the public site reads items (M9) it needs
-// its own condition on `visibility`; do not reuse a query that takes an
-// `ownerId` for a visitor.
+// None of this is for the public site, which reads items through
+// ./public.ts with its own condition on `visibility`: do not reuse a query
+// that takes an `ownerId` for a visitor.
 
 export type ItemKind = (typeof item.kind.enumValues)[number];
 export type ItemVisibility = (typeof item.visibility.enumValues)[number];
@@ -261,8 +261,9 @@ export async function itemTags(db: Db, ids: readonly string[]): Promise<Map<stri
 }
 
 // The items with these ids, each with all of its passages and tags, in the
-// order of `ids`.
-async function loadItems(db: Db, ids: readonly string[]): Promise<Item[]> {
+// order of `ids`. Whoever's and however visible they are: the caller chose
+// the ids.
+export async function loadItems(db: Db, ids: readonly string[]): Promise<Item[]> {
   if (ids.length === 0) return [];
   const [rows, passages, tags] = await Promise.all([
     db.select(itemColumns).from(item).where(inArray(item.id, [...ids])),

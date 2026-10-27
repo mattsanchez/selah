@@ -63,7 +63,14 @@ describe("markdownExcerpt", () => {
     expect(markdownExcerpt("")).toBe("");
   });
 
+  it("keeps a word whole across inline markup, and parts blocks", () => {
+    expect(markdownExcerpt("weak through the **flesh**. Then\n\n- one\n- two")).toBe(
+      "weak through the flesh. Then one two",
+    );
+  });
+
   it("is cut at a word", () => {
     expect(markdownExcerpt("one two three four", 10)).toBe("one two…");
+    expect(markdownExcerpt("groaning, adoption, hope", 18)).toBe("groaning…");
   });
 });
