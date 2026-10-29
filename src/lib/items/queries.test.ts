@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { overlapsPassage, publishedAtFor, taggedWith } from "./queries";
+import { containsPattern, overlapsPassage, publishedAtFor, taggedWith } from "./queries";
 
 const toQuery = (ranges: { start: number; end: number }[]) =>
   new PgDialect().sqlToQuery(overlapsPassage(ranges));
@@ -79,5 +79,13 @@ describe("taggedWith", () => {
     );
     expect(migration).toContain(`CREATE UNIQUE INDEX "tag_owner_slug_idx" ON "tag" USING btree ("owner_id","slug")`);
     expect(migration).toContain(`CREATE INDEX "item_tag_tag_idx" ON "item_tag" USING btree ("tag_id")`);
+  });
+});
+
+describe("containsPattern", () => {
+  it("finds the words anywhere, and takes % and _ as themselves", () => {
+    expect(containsPattern("living water")).toBe("%living water%");
+    expect(containsPattern("100% sure_ish")).toBe("%100\\% sure\\_ish%");
+    expect(containsPattern("back\\slash")).toBe("%back\\\\slash%");
   });
 });

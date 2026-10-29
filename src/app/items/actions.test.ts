@@ -30,9 +30,10 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 const {
-  createNoteAction,
+  createDraftAction,
   createReflectionAction,
   deleteItemAction,
+  publishItemAction,
   saveItemAction,
   setVisibilityAction,
 } = await import("./actions");
@@ -56,7 +57,7 @@ beforeEach(() => {
     { id: "kjv", abbrev: "KJV" },
   ]);
   mocks.createItem.mockResolvedValue(ITEM);
-  mocks.getItem.mockResolvedValue({ id: ITEM, kind: "reflection" });
+  mocks.getItem.mockResolvedValue({ id: ITEM, kind: "reflection", updatedAt: SAVED, publishedAt: null });
   mocks.saveItemContent.mockResolvedValue(SAVED);
   mocks.setVisibility.mockResolvedValue(true);
   mocks.deleteItem.mockResolvedValue(true);
@@ -70,12 +71,13 @@ describe("a visitor who is not signed in", () => {
   it("cannot write, publish or delete anything", async () => {
     const refused = "redirect:/sign-in";
     await expect(createReflectionAction(form({ v: "john-3.16" }))).rejects.toThrow(refused);
-    await expect(createNoteAction({}, form({ markdown: "Hi", visibility: "public" }))).rejects.toThrow(refused);
+    await expect(createDraftAction({ ...draft({ markdown: "Hi" }), kind: "note" })).rejects.toThrow(refused);
+    await expect(publishItemAction({ id: ITEM, visibility: "public" })).rejects.toThrow(refused);
     await expect(saveItemAction(draft({ markdown: "Changed" }))).rejects.toThrow(refused);
     await expect(setVisibilityAction(form({ id: ITEM, visibility: "public" }))).rejects.toThrow(refused);
     await expect(deleteItemAction(form({ id: ITEM }))).rejects.toThrow(refused);
 
-    expect(mocks.requireOwner).toHaveBeenCalledTimes(5);
+    expect(mocks.requireOwner).toHaveBeenCalledTimes(6);
     for (const touched of [
       mocks.createItem,
       mocks.deleteItem,
@@ -103,7 +105,7 @@ describe("the owner", () => {
       {
         ownerId: OWNER.id,
         kind: "reflection",
-        markdown: "[[Romans 8:38-39 | KJV]]\n\n",
+        markdown: "[[Romans 8:38-39 | KJV]]",
         passages: [{ start: 45008038, end: 45008039, translationId: "kjv" }],
       },
     );
@@ -114,66 +116,80 @@ describe("the owner", () => {
     expect(mocks.createItem.mock.calls[0][1]).toMatchObject({ markdown: "", passages: [] });
   });
 
-  it("posts a note on the selected verses and returns to them", async () => {
-    await expect(
-      createNoteAction(
-        {},
-        form({
-          markdown: "Be still.",
-          tags: "Psalms, rest",
-          visibility: "public",
-          v: "psalm-46.10",
-          p: "psalm-46",
-          t: "kjv",
-          translationId: "kjv",
-        }),
-      ),
-    ).rejects.toThrow("redirect:/read/psalm-46?t=kjv&v=psalm-46.10");
+  it("makes a new reflection by its first save, with the passages of its cards", async () => {
+    const result = await createDraftAction({
+      kind: "reflection",
+      title: " Abide ",
+      markdown: "[[John 15:4-5 | KJV]]\n\nRemain.",
+      tags: "Abiding",
+    });
+    expect(result).toEqual({ ok: true, id: ITEM, savedAt: SAVED.toISOString() });
+    expect(mocks.createItem).toHaveBeenCalledExactlyOnceWith(
+      {},
+      {
+        ownerId: OWNER.id,
+        kind: "reflection",
+        title: "Abide",
+        markdown: "[[John 15:4-5 | KJV]]\n\nRemain.",
+        tags: [{ slug: "abiding", name: "Abiding" }],
+        passages: [{ start: 43015004, end: 43015005, translationId: "kjv" }],
+      },
+    );
+  });
+
+  it("makes a new note on the verses it was written on, private until posted", async () => {
+    await createDraftAction({
+      kind: "note",
+      title: "ignored",
+      markdown: "Be still.",
+      tags: "rest",
+      v: "psalm-46.10",
+      translationId: "kjv",
+    });
     expect(mocks.createItem).toHaveBeenCalledExactlyOnceWith(
       {},
       {
         ownerId: OWNER.id,
         kind: "note",
+        title: null,
         markdown: "Be still.",
+        tags: [{ slug: "rest", name: "rest" }],
+        visibility: "private",
         passages: [{ start: 19046010, end: 19046010 }],
         translationId: "kjv",
-        tags: [
-          { slug: "psalms", name: "Psalms" },
-          { slug: "rest", name: "rest" },
-        ],
-        visibility: "public",
       },
     );
   });
 
-  it("posts a note on no passage and returns to the list", async () => {
-    await expect(
-      createNoteAction({}, form({ markdown: "A thought.", tags: "", visibility: "private" })),
-    ).rejects.toThrow("redirect:/items");
-    expect(mocks.createItem.mock.calls[0][1]).toMatchObject({
-      kind: "note",
-      passages: [],
-      translationId: null,
-      visibility: "private",
-    });
-  });
-
-  it("is told what is wrong with a note, and nothing is posted", async () => {
-    const state = await createNoteAction({}, form({ markdown: "  ", tags: "", visibility: "public" }));
-    expect(state).toEqual({
+  it("makes nothing that is not valid, and says why", async () => {
+    expect(await createDraftAction({ kind: "note", title: "", markdown: "  ", tags: "" })).toEqual({
+      ok: false,
       errors: { markdown: "Write the note first." },
-      values: { markdown: "  ", tags: "", visibility: "public" },
     });
+    expect(await createDraftAction({ kind: "highlight", title: "", markdown: "x", tags: "" } as never)).toMatchObject({
+      ok: false,
+    });
+    expect(await createDraftAction(null as never)).toMatchObject({ ok: false });
     expect(mocks.createItem).not.toHaveBeenCalled();
   });
 
-  it("does not follow a return address that is not a passage", async () => {
-    await expect(
-      createNoteAction(
-        {},
-        form({ markdown: "x", visibility: "public", v: "john-3.16", p: "//evil.example", t: "bsb&x=1" }),
-      ),
-    ).rejects.toThrow("redirect:/read/john-3.16?v=john-3.16");
+  it("publishes from the editor and answers with what the item now is", async () => {
+    const published = new Date("2026-10-14T08:00:00Z");
+    mocks.getItem
+      .mockResolvedValueOnce({ id: ITEM, kind: "reflection" })
+      .mockResolvedValueOnce({ id: ITEM, kind: "reflection", publishedAt: published });
+    expect(await publishItemAction({ id: ITEM, visibility: "unlisted" })).toEqual({
+      ok: true,
+      visibility: "unlisted",
+      publishedAt: published.toISOString(),
+    });
+    expect(mocks.setVisibility).toHaveBeenCalledExactlyOnceWith({}, { ownerId: OWNER.id, id: ITEM }, "unlisted");
+
+    mocks.getItem.mockResolvedValue({ id: ITEM, kind: "highlight" });
+    expect(await publishItemAction({ id: ITEM, visibility: "public" })).toMatchObject({ ok: false });
+    expect(await publishItemAction({ id: ITEM, visibility: "everyone" })).toMatchObject({ ok: false });
+    expect(await publishItemAction({ id: "nope", visibility: "public" })).toMatchObject({ ok: false });
+    expect(mocks.setVisibility).toHaveBeenCalledTimes(1);
   });
 
   it("saves a reflection with the passages of the cards in it", async () => {

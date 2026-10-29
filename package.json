@@ -32,8 +32,20 @@
     "e2e:serve:fresh-install": "tsx scripts/e2e-fresh-install.ts serve"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.8.0",
     "@node-rs/argon2": "^2.2.2",
+    "@tiptap/core": "3.31.4",
+    "@tiptap/extension-bubble-menu": "3.31.4",
+    "@tiptap/extension-floating-menu": "3.31.4",
+    "@tiptap/extension-image": "3.31.4",
+    "@tiptap/extensions": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/react": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
+    "@tiptap/suggestion": "3.31.4",
     "drizzle-orm": "^0.45.4",
+    "mdast-util-from-markdown": "2.0.2",
+    "mdast-util-to-markdown": "2.1.2",
     "micromark": "^4.0.3",
     "next": "^16.4.3",
     "next-auth": "5.0.0-beta.32",
@@ -46,6 +58,7 @@
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^22.20.5",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.3.0",

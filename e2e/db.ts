@@ -84,3 +84,14 @@ export function seedHighlights(
     }
   });
 }
+
+// Writes an item's Markdown as the M8 text area could have: what the editor
+// cannot make, such as a card whose reference does not parse.
+export function setItemMarkdown(id: string, markdown: string): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`
+      update item set markdown = ${markdown}, updated_at = now()
+      where id = ${id}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}

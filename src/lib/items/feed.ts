@@ -4,6 +4,7 @@ import { formatReference } from "@/lib/bible/reference";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import { readerPath, translationParam } from "@/lib/reader-url";
 
+import { CARD_CHARS } from "./card-length";
 import { findTranslation, parseDocument } from "./cards";
 import { renderMarkdown } from "./markdown";
 import type { Item } from "./queries";
@@ -16,9 +17,7 @@ import type { Item } from "./queries";
 //
 // Nothing here decides who may see an item: the caller chooses the items.
 
-// About how many characters of scripture a card quotes before it leaves the
-// rest to the reader.
-export const CARD_CHARS = 1500;
+export { CARD_CHARS };
 
 export type CardVerse = { verseId: number; text: string };
 

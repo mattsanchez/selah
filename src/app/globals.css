@@ -221,6 +221,127 @@
     @apply border-stone-300 dark:border-stone-700;
   }
 
+  /* The editor (src/components/editor). While it is open, the page is the
+     post: the owner bar steps aside. */
+  body:has([data-editor-page]) [data-owner-bar] {
+    display: none;
+  }
+  .post-title {
+    @apply block w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-serif text-[2.5rem] leading-[1.15] font-semibold tracking-tight text-stone-950 placeholder:text-stone-300 focus:outline-none sm:text-5xl sm:leading-[1.1] dark:text-stone-50 dark:placeholder:text-stone-700;
+  }
+  /* The body as it is written: the same type as the feed prints, a size
+     up for writing. */
+  .post-prose {
+    @apply min-h-[40vh] font-serif text-[1.1875rem] leading-[1.8] text-stone-800 caret-stone-900 focus:outline-none dark:text-stone-200 dark:caret-stone-100;
+  }
+  .post-prose > * {
+    @apply my-6 first:mt-0;
+  }
+  .post-prose :is(h1, h2, h3, h4, h5, h6) {
+    @apply mt-10 mb-3 font-sans font-semibold tracking-tight text-stone-900 dark:text-stone-100;
+  }
+  .post-prose h1 {
+    @apply text-3xl;
+  }
+  .post-prose h2 {
+    @apply text-2xl;
+  }
+  .post-prose :is(h3, h4, h5, h6) {
+    @apply text-xl;
+  }
+  .post-prose a {
+    @apply text-sky-700 underline decoration-sky-300 underline-offset-2 dark:text-sky-400 dark:decoration-sky-800;
+  }
+  .post-prose ul {
+    @apply list-disc pl-7;
+  }
+  .post-prose ol {
+    @apply list-decimal pl-7;
+  }
+  .post-prose li > p {
+    @apply my-1;
+  }
+  .post-prose blockquote {
+    @apply border-l-[3px] border-stone-900 pl-5 text-stone-700 italic dark:border-stone-100 dark:text-stone-300;
+  }
+  .post-prose code {
+    @apply rounded-sm bg-stone-100 px-1 py-0.5 font-mono text-[0.85em] dark:bg-stone-800;
+  }
+  .post-prose pre {
+    @apply overflow-x-auto rounded-md bg-stone-100 p-4 text-sm leading-6 dark:bg-stone-800;
+  }
+  .post-prose pre code {
+    @apply bg-transparent p-0;
+  }
+  .post-prose img {
+    @apply mx-auto h-auto max-w-full rounded-md;
+  }
+  .post-prose img.ProseMirror-selectednode {
+    @apply outline-2 outline-offset-4 outline-sky-500;
+  }
+  .post-prose hr {
+    @apply my-10 border-0 text-center before:tracking-[0.75em] before:text-stone-400 before:content-['•••'];
+  }
+  .post-prose hr.ProseMirror-selectednode {
+    @apply rounded-sm outline-2 outline-offset-4 outline-sky-500;
+  }
+  .post-prose p.is-empty::before {
+    @apply pointer-events-none float-left h-0 text-stone-300 content-[attr(data-placeholder)] dark:text-stone-600;
+  }
+  .post-prose .suggestion {
+    @apply rounded-sm bg-stone-100 px-0.5 dark:bg-stone-800;
+  }
+  .drop-cursor {
+    @apply bg-sky-500;
+  }
+  /* A passage in the post. */
+  .passage-block {
+    @apply relative my-9 rounded-r-md border-l-[3px] border-stone-300 py-1 pr-2 pl-5 font-sans dark:border-stone-600;
+  }
+  .post-prose .passage-block blockquote {
+    @apply border-0 p-0 text-inherit not-italic;
+  }
+  .passage-block blockquote .passage-text {
+    @apply text-[1.0625rem] leading-[1.8];
+  }
+  .passage-block[data-selected] {
+    @apply border-sky-500 bg-sky-50/60 dark:bg-sky-950/30;
+  }
+  .passage-block-tools {
+    @apply absolute right-0 bottom-full z-10 mb-1.5 flex items-center gap-0.5 rounded-md border border-stone-200 bg-white p-0.5 opacity-0 shadow-sm transition-opacity dark:border-stone-700 dark:bg-stone-900;
+  }
+  .passage-block:hover .passage-block-tools,
+  .passage-block[data-selected] .passage-block-tools,
+  .passage-block-tools:focus-within {
+    @apply opacity-100;
+  }
+  @media (hover: none) {
+    .passage-block-tools {
+      @apply opacity-100;
+    }
+  }
+  .passage-block-status {
+    @apply animate-pulse py-4 text-sm text-stone-500 dark:text-stone-400;
+  }
+  .passage-block-error {
+    @apply rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200;
+  }
+  /* The menus over the text. */
+  .selection-toolbar {
+    @apply z-50 rounded-lg bg-stone-900 p-1 font-sans shadow-lg dark:bg-stone-100;
+  }
+  .slash-menu {
+    @apply z-50 w-72 rounded-lg border border-stone-200 bg-white font-sans shadow-xl dark:border-stone-700 dark:bg-stone-900;
+  }
+  .editor-popover {
+    @apply z-50 rounded-lg border border-stone-200 bg-white p-4 font-sans text-stone-900 shadow-xl focus-visible:outline-none dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100;
+  }
+  /* One of the owner's items in the study sidebar. */
+  .mine-item {
+    @apply rounded-md border-l-[3px] bg-white py-2 pr-2 pl-3 dark:bg-stone-900;
+    border-left-color: var(--hl-accent, var(--color-stone-300));
+  }
+
   /* One color of the palette in a form. */
   .highlight-choice {
     @apply inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-stone-300 bg-white pr-3 pl-2 text-sm select-none hover:bg-stone-50 has-[:checked]:border-stone-900 has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-stone-900)] has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:hover:bg-stone-800 dark:has-[:checked]:border-stone-100 dark:has-[:checked]:shadow-[inset_0_0_0_1px_var(--color-stone-100)];
