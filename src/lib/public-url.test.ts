@@ -8,6 +8,7 @@ import {
   homePath,
   itemHeadline,
   itemKey,
+  itemLinkTarget,
   itemSlug,
   itemSummary,
   keyIdRange,
@@ -101,6 +102,35 @@ describe("permalinks", () => {
     expect(parsePermalink("no-condemnation")).toBeUndefined();
     expect(parsePermalink("3f9a2c1b7d4")).toBeUndefined();
     expect(parsePermalink("x-3f9a2c1b7d4e0")).toBeUndefined();
+  });
+});
+
+describe("a link to an item by its id", () => {
+  const reflection = item({ kind: "reflection", title: "No condemnation", markdown: "Text." });
+  const highlight = item({
+    kind: "highlight",
+    color: "yellow",
+    passages: [{ start: 45008038, end: 45008039, translationId: "bsb" }],
+  });
+
+  it("takes a visitor to the permalink of a public or unlisted item", () => {
+    expect(itemLinkTarget(reflection, { owner: false })).toBe("/p/no-condemnation-3f9a2c1b7d4e");
+    expect(itemLinkTarget({ ...highlight, visibility: "unlisted" }, { owner: false })).toBe(
+      "/p/romans-8-38-39-3f9a2c1b7d4e",
+    );
+  });
+
+  it("takes a visitor nowhere for a private item", () => {
+    expect(itemLinkTarget({ ...reflection, visibility: "private" }, { owner: false })).toBeUndefined();
+  });
+
+  it("takes the owner to the item itself, however visible it is", () => {
+    for (const visibility of ["public", "unlisted", "private"] as const) {
+      expect(itemLinkTarget({ ...reflection, visibility }, { owner: true })).toBe(`/items/${ID}/edit`);
+      expect(itemLinkTarget({ ...highlight, visibility }, { owner: true })).toBe(
+        "/read/romans-8.38-39?v=romans-8.38-39",
+      );
+    }
   });
 });
 

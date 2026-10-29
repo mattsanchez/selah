@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { ImageResponse } from "next/og";
 
+import { quoteVerses } from "@/lib/items/feed-html";
 import { HIGHLIGHT_COLORS, type HighlightColor } from "@/lib/items/palette";
 
 import { drawable, fontCharacters } from "./cmap";
@@ -132,7 +133,7 @@ export async function ogImage(card: OgCard, init: ResponseInit = {}): Promise<Im
           }}
         >
           <div style={{ display: "flex", fontSize: verseSize(verses.length), lineHeight: 1.3, color: INK }}>
-            {`“${verses}”`}
+            {quoteVerses(verses)}
           </div>
           <div style={{ display: "flex", marginTop: 24, fontSize: 32, fontWeight: 600, color: INK }}>
             {text(card.reference, 80)}

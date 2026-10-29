@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Db } from "@/db/client";
 
-import { findByKey, listPublicItems, listed, publicTag, publicTags, reachable } from "./public";
+import { findByKey, findReachable, listPublicItems, listed, publicTag, publicTags, reachable } from "./public";
 
 // The public queries, run against a stand-in database that records the SQL
 // each one sends and finds nothing. What is checked is what each asks the
@@ -112,6 +112,27 @@ describe("findByKey", () => {
     await findByKey(db, "3f9a2c1b7d4e", { ownerId: "owner-id" });
     const [query] = itemQueries(sent);
     expect(query.sql).toContain(`or "item"."owner_id" = $5`);
+    expect(query.params).toContain("owner-id");
+  });
+});
+
+describe("findReachable", () => {
+  const ID = "3f9a2c1b-7d4e-4c2a-9b1e-0c5d2e8f1a3b";
+
+  it("looks for the item only while it is public or unlisted", async () => {
+    const { db, sent } = recordingDb();
+    expect(await findReachable(db, ID)).toBeUndefined();
+    const [query] = itemQueries(sent);
+    expect(query.sql).toContain(`where ("item"."id" = $1 and "item"."visibility" in ($2, $3))`);
+    expect(query.params.slice(0, 3)).toEqual([ID, "public", "unlisted"]);
+    expect(query.params).not.toContain("private");
+  });
+
+  it("finds the owner's private item for the owner only", async () => {
+    const { db, sent } = recordingDb();
+    await findReachable(db, ID, { ownerId: "owner-id" });
+    const [query] = itemQueries(sent);
+    expect(query.sql).toContain(`or "item"."owner_id" = $4`);
     expect(query.params).toContain("owner-id");
   });
 });

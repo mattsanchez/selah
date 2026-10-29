@@ -1,6 +1,7 @@
 import type { Db } from "@/db/client";
 import { getPassages, type Translation } from "@/lib/bible/passage";
 import { formatReference } from "@/lib/bible/reference";
+import type { VerseRecord } from "@/lib/bible/types";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import { readerPath, translationParam } from "@/lib/reader-url";
 
@@ -19,14 +20,16 @@ import type { Item } from "./queries";
 
 export { CARD_CHARS };
 
-export type CardVerse = { verseId: number; text: string };
+// A verse as stored, with its breaks and red letters, for the card to lay out
+// as the reader does (layoutPassage in src/lib/bible/layout.ts).
+export type CardVerse = VerseRecord;
 
 export type PassageCardView = {
   ranges: VerseRange[];
   reference: string;
   // The translation it is quoted in; undefined when none is loaded.
   translation?: Translation;
-  // The verses of each run that has any, each on one line.
+  // The verses of each run that has any.
   runs: CardVerse[][];
   // Whether verses were left out to keep the card short.
   more: boolean;
@@ -52,19 +55,19 @@ export type FeedEntry = {
 
 type CardRequest = { ranges: VerseRange[]; translation?: Translation; view?: PassageCardView };
 
-function cut(runs: readonly (readonly { verseId: number; text: string }[])[]) {
+function cut(runs: readonly (readonly VerseRecord[])[]) {
   const shown: CardVerse[][] = [];
   let length = 0;
   let more = false;
   for (const run of runs) {
     const verses: CardVerse[] = [];
-    for (const { verseId, text } of run) {
-      if (length > 0 && length + text.length > CARD_CHARS) {
+    for (const verse of run) {
+      if (length > 0 && length + verse.text.length > CARD_CHARS) {
         more = true;
         break;
       }
-      verses.push({ verseId, text: text.replace(/\s+/g, " ").trim() });
-      length += text.length;
+      verses.push(verse);
+      length += verse.text.length;
     }
     if (verses.length > 0) shown.push(verses);
     if (more) break;

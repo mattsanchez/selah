@@ -109,6 +109,26 @@ export async function findByKey(
   );
 }
 
+// The item with this id, while a link may open it: public or unlisted, or
+// the owner's own when the owner is asking. For /items/<id>, the address a
+// post links to another item by.
+export async function findReachable(
+  db: Db,
+  id: string,
+  { ownerId }: { ownerId?: string } = {},
+): Promise<Item | undefined> {
+  const rows = await db
+    .select({ id: item.id })
+    .from(item)
+    .where(and(eq(item.id, id), reachable(ownerId)))
+    .limit(1);
+  const [found] = await loadItems(
+    db,
+    rows.map((row) => row.id),
+  );
+  return found;
+}
+
 // The tag with this slug, while a public item has it. A tag on nothing but
 // private and unlisted items is not shown anywhere, not even its name.
 export async function publicTag(db: Db, slug: string): Promise<TagName | undefined> {

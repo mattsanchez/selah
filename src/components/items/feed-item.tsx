@@ -91,7 +91,7 @@ export function FeedItem({
 
       {passage && (
         <div className="mt-3">
-          <PassageCard card={passage} highlighted={item.kind === "highlight"} />
+          <PassageCard card={passage} color={color?.id} />
         </div>
       )}
 

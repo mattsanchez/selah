@@ -6,6 +6,7 @@ import { Masthead } from "@/components/site/masthead";
 import { PublicFeed } from "@/components/site/public-feed";
 import { getDb } from "@/db/client";
 import { getOwner } from "@/lib/auth/owner";
+import { writePath } from "@/lib/items-url";
 import { listPublicItems } from "@/lib/items/public";
 import { SITE_DESCRIPTION, publicEntries } from "@/lib/public-feed";
 import { publicMetadata } from "@/lib/public-metadata";
@@ -48,7 +49,7 @@ export default async function HomePage({ searchParams }: Props) {
       <main className="site-main">
         {owner && (
           <div className="site-column mb-10">
-            <Link href="/write" className="site-new-post">
+            <Link href={writePath()} className="site-new-post">
               New post
             </Link>
           </div>

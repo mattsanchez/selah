@@ -1,10 +1,12 @@
 import { normalizeRanges } from "@/lib/bible/ranges";
 import { formatReference, parseReference, referenceSlug } from "@/lib/bible/reference";
 import type { VerseRange } from "@/lib/bible/verse-id";
+import { editItemPath } from "@/lib/items-url";
 import { parseDocument } from "@/lib/items/cards";
 import { markdownExcerpt } from "@/lib/items/markdown";
 import type { Item } from "@/lib/items/queries";
 import { tagSlug } from "@/lib/items/tags";
+import { readerPath } from "@/lib/reader-url";
 
 // The public site's URLs. Everything here can be read by anyone; what each
 // page lists is decided by the public queries (src/lib/items/public.ts).
@@ -19,6 +21,9 @@ import { tagSlug } from "@/lib/items/tags";
 //   /rss.xml, /atom.xml            the feed as RSS 2.0 and as Atom
 //   /tag/<slug>/rss.xml, ...       ... of a tag; /passage/<reference>/rss.xml too
 //   .../og.png                     the Open Graph image of a page
+//   /items/<id>                    an item as a post links to it (itemLinkPath in
+//                                  src/lib/items-url.ts): redirects a visitor
+//                                  to its permalink (itemLinkTarget below)
 //
 // A permalink's key is the first twelve hex digits of the item's id: it never
 // changes, so a link keeps working whatever happens to the item's title. The
@@ -109,6 +114,23 @@ export function permalinkPath(item: Headed & Pick<Item, "id">): string {
   const slug = itemSlug(item);
   const key = itemKey(item.id);
   return `/p/${slug ? `${encodeURIComponent(slug)}-${key}` : key}`;
+}
+
+// Where a link to an item by its id (/items/<id>, as the editor's "My
+// content" links one post to another) takes whoever follows it. The owner
+// goes to the item itself: a reflection or a note to its editor, a highlight
+// to its verses in the reader. Anyone else goes to its permalink while it is
+// public or unlisted, and nowhere while it is private.
+export function itemLinkTarget(
+  item: Headed & Pick<Item, "id" | "visibility">,
+  { owner }: { owner: boolean },
+): string | undefined {
+  if (owner) {
+    return item.kind === "highlight"
+      ? readerPath(item.passages, undefined, { v: item.passages })
+      : editItemPath(item.id);
+  }
+  return item.visibility === "private" ? undefined : permalinkPath(item);
 }
 
 const paged = (path: string, page = 1) => (page > 1 ? `${path}?page=${page}` : path);

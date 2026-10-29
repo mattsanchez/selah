@@ -68,7 +68,7 @@ test.describe("the signed-in owner", () => {
     const sharedCard = shared.locator("[data-passage-card='Romans 1:16-17']");
     await expect(sharedCard).toContainText("I am not ashamed of the gospel");
     await expect(sharedCard).toContainText("The righteous will live by faith.");
-    await expect(sharedCard.locator(".highlight-text")).toHaveCSS("background-color", BLUE);
+    await expect(sharedCard.locator("[data-verse-id]").first()).toHaveCSS("background-color", BLUE);
     await expect(sharedCard.locator("[data-card-translation='bsb']")).toHaveText("BSB");
     await expect(sharedCard.getByRole("link", { name: "Romans 1:16-17" })).toHaveAttribute(
       "href",

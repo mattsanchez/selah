@@ -3,7 +3,7 @@ import { listTranslations } from "@/lib/bible/passage";
 import { formatReference } from "@/lib/bible/reference";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import { loadFeedEntries, type FeedEntry } from "@/lib/items/feed";
-import { cardText, entryHtml } from "@/lib/items/feed-html";
+import { cardText, entryHtml, quoteVerses } from "@/lib/items/feed-html";
 import { findByKey, listPublicItems, publicTag, type PublicFilter } from "@/lib/items/public";
 import type { Item } from "@/lib/items/queries";
 import { tagSlug } from "@/lib/items/tags";
@@ -49,7 +49,7 @@ export function entryDescription(entry: FeedEntry): string {
   const { item, passage } = entry;
   const summary = itemSummary(item);
   if (item.kind === "highlight" && passage) {
-    const verses = `“${cardText(passage, 240)}” (${passage.reference}${passage.translation ? `, ${passage.translation.abbrev}` : ""})`;
+    const verses = `${quoteVerses(cardText(passage, 240))} (${passage.reference}${passage.translation ? `, ${passage.translation.abbrev}` : ""})`;
     return summary ? `${verses} ${summary}` : verses;
   }
   return summary || (passage ? `On ${passage.reference}.` : "");

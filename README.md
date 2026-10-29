@@ -464,6 +464,7 @@ What a visitor sees, with no account: the writer's items in one calm column of s
 | `/passage/<reference>` | The passage in the default translation, then every public item on verses that overlap it: `/passage/romans-8` lists an item on Romans 8:28 and one on Romans 7:24-8:2. Any reference the reader takes works (`/passage/rom-8`, `/passage/john-3-16-21`) and redirects to the reader's spelling. |
 | `/rss.xml`, `/atom.xml` | RSS 2.0 and Atom feeds of the latest 20 public items, with their full content, verses and attributions. Every tag and passage page has its own: `/tag/grace/rss.xml`, `/passage/romans-8/atom.xml`. |
 | `/sitemap.xml`, `/robots.txt` | For search engines: the public items, tags and passages. |
+| `/items/<id>` | How a post links to another item (the editor's "My content"). A visitor is sent on to the item's permalink while it is public or unlisted; the owner goes to the item itself. |
 
 **Permalinks.** The key is the first twelve hex digits of the item's id, so it never changes; the slug before it is for people (a reflection's title, a note's first words, a highlight's reference). A permalink with an old slug, or with the key alone, redirects to the current one.
 
@@ -471,9 +472,11 @@ What a visitor sees, with no account: the writer's items in one calm column of s
 
 **Sharing.** Every public page has Open Graph and Twitter card tags and an image beside it (`/p/<key>/og.png`, `/passage/romans-8/og.png`, `/tag/grace/og.png`, `/og.png`). A shared highlight previews as the verse, with its reference, translation and color; a reflection as its title and first words. The images are drawn on the server from the font files in `src/fonts`, with no request anywhere else: characters the font does not have (emoji, scripts other than Latin, Greek and Cyrillic) are left out of the image rather than fetched. Absolute URLs use `SELAH_URL` when it is set, otherwise the address the request came to.
 
+**Passages.** A passage in an item is laid out as the reader lays it out, with its paragraphs, lines of poetry and red letters (`layoutPassage`, `<PassageQuote>`), on the page and in the feeds, where red letters carry an inline color for readers that drop classes. Descriptions and Open Graph images run the verses together on one line.
+
 **Attribution.** Every passage on a page, in a feed entry or in a card credits its translation, and the footer of every public page lists each data source with its license.
 
-The pieces: `src/lib/public-url.ts` (the addresses, `permalinkPath`, `itemHeadline`, `parsePassage`), `src/lib/items/public.ts` (`listPublicItems`, `findByKey`, `publicTag`, `publicTags`), `src/lib/public-feed.ts` (entries, feeds, OG cards), `src/lib/syndication.ts` (RSS and Atom), `src/lib/og/` (images), `src/components/site/` and `src/app/(site)/` (the theme and its pages).
+The pieces: `src/lib/public-url.ts` (the addresses, `permalinkPath`, `itemLinkTarget`, `itemHeadline`, `parsePassage`), `src/lib/items/public.ts` (`listPublicItems`, `findByKey`, `findReachable`, `publicTag`, `publicTags`), `src/lib/public-feed.ts` (entries, feeds, OG cards), `src/lib/syndication.ts` (RSS and Atom), `src/lib/og/` (images), `src/components/site/` and `src/app/(site)/` (the theme and its pages).
 
 ## Owner account and settings
 
