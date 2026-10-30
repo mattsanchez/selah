@@ -32,6 +32,34 @@ describe("the URLs of My items", () => {
   });
 });
 
+describe("searching My items", () => {
+  it("writes and reads back every filter", () => {
+    const filters = {
+      q: "true vine",
+      passage: "John 15:1-5",
+      kind: "note",
+      tag: "abiding",
+      color: "yellow",
+      visibility: "public",
+      exact: true,
+      page: 2,
+    } as const;
+    const path = itemsPath(filters);
+    expect(path).toBe(
+      "/items?q=true%20vine&passage=John%2015%3A1-5&kind=note&tag=abiding&color=yellow&visibility=public&exact=1&page=2",
+    );
+    const params = Object.fromEntries(new URL(path, "http://x").searchParams);
+    expect(parseItemFilters(params)).toEqual(filters);
+  });
+
+  it("drops what it does not know, and cuts what nobody would type", () => {
+    expect(
+      parseItemFilters({ color: "plaid", visibility: "secret", exact: "yes", q: "  ", passage: "" }),
+    ).toEqual({});
+    expect(parseItemFilters({ q: "x".repeat(500) }).q).toHaveLength(200);
+  });
+});
+
 describe("the URLs of the editor", () => {
   it("starts a reflection, or a note, on verses or on none, and says where to go back", () => {
     expect(writePath()).toBe("/write");

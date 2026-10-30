@@ -8,10 +8,12 @@ import {
   interpretQuery,
   parsePage,
   parseScope,
+  parseSearchMode,
   readerTranslations,
   scopeName,
   scopeParam,
   scopeRanges,
+  searchModeParam,
   searchPath,
   searchTranslationParam,
   selectSearchTranslations,
@@ -237,5 +239,28 @@ describe("verseRange", () => {
   it("is the one verse", () => {
     expect(verseRange(43004010)).toEqual([{ start: 43004010, end: 43004010 }]);
     expect(() => verseRange(43099001)).toThrow(RangeError);
+  });
+});
+
+describe("search modes", () => {
+  it("reads a mode where meaning search is available, Both by default", () => {
+    expect(parseSearchMode(undefined, true)).toBe("both");
+    expect(parseSearchMode("both", true)).toBe("both");
+    expect(parseSearchMode("meaning", true)).toBe("meaning");
+    expect(parseSearchMode("keyword", true)).toBe("keyword");
+    expect(parseSearchMode("nonsense", true)).toBe("both");
+  });
+
+  it("is always keyword where it is not", () => {
+    for (const param of [undefined, "both", "meaning", "keyword"]) {
+      expect(parseSearchMode(param, false)).toBe("keyword");
+    }
+  });
+
+  it("puts in the URL only what is not the default", () => {
+    expect(searchModeParam("both", true)).toBeUndefined();
+    expect(searchModeParam("meaning", true)).toBe("meaning");
+    expect(searchModeParam("keyword", false)).toBeUndefined();
+    expect(searchPath({ q: "peace", mode: "meaning", page: 2 })).toBe("/search?q=peace&mode=meaning&page=2");
   });
 });

@@ -2,32 +2,51 @@
 
 import { useState, type FormEvent } from "react";
 
+import { BOOKS } from "@/lib/bible/books";
 import { chapterLabel } from "@/lib/bible/reference";
+import type { SearchMode } from "@/lib/bible/search";
 import { parseVerseId } from "@/lib/bible/verse-id";
 import type { SearchData } from "@/lib/editor/types";
+import { TESTAMENT_NAMES, bookSlug } from "@/lib/search-url";
 
 import type { StudyPanelProps } from "./study-sidebar";
 
 const quiet =
   "inline-flex h-7 cursor-pointer items-center rounded px-2 text-xs font-medium text-stone-600 hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-stone-500 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100";
 
-// "Search": keyword search of the Bible (searchVerses, in the translation the
-// sidebar reads), each verse insertable as it is or opened to read around.
+const MODES: readonly { mode: SearchMode; label: string }[] = [
+  { mode: "keyword", label: "Keyword" },
+  { mode: "meaning", label: "Meaning" },
+  { mode: "both", label: "Both" },
+];
+
+// "Search": the Bible (searchVerses, in the translation the sidebar reads), by
+// keyword and, where the install can, by meaning; each hit insertable as it is
+// or opened to read around.
 export function SearchPanel({ bridge }: StudyPanelProps) {
   const { translationId, translations } = bridge;
+  const meaning = bridge.meaningTranslations.includes(translationId);
+  const [mode, setMode] = useState<SearchMode>("both");
+  const [scope, setScope] = useState("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ query: string; data: SearchData } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const abbrev = translations.find((translation) => translation.id === translationId)?.abbrev ?? "";
 
-  const search = async (text: string, offset = 0) => {
+  const search = async (text: string, offset = 0, wanted = { mode, scope }) => {
     if (!text.trim()) return;
     setLoading(true);
     setError(null);
     try {
       const response = await fetch(
-        `/api/editor/search?${new URLSearchParams({ q: text, t: translationId, offset: String(offset) })}`,
+        `/api/editor/search?${new URLSearchParams({
+          q: text,
+          t: translationId,
+          offset: String(offset),
+          mode: wanted.mode,
+          in: wanted.scope,
+        })}`,
       );
       if (!response.ok) throw new Error(String(response.status));
       const data = (await response.json()) as SearchData;
@@ -48,7 +67,15 @@ export function SearchPanel({ bridge }: StudyPanelProps) {
     void search(query);
   };
 
+  const change = (next: { mode?: SearchMode; scope?: string }) => {
+    const wanted = { mode, scope, ...next };
+    setMode(wanted.mode);
+    setScope(wanted.scope);
+    if (results) void search(results.query, 0, wanted);
+  };
+
   const data = results?.data;
+  const unit = data?.mode === "keyword" ? "verse" : "passage";
   return (
     <div className="flex h-full flex-col">
       <form onSubmit={submit} role="search" aria-label="Search the Bible" className="px-4 pt-4">
@@ -57,7 +84,7 @@ export function SearchPanel({ bridge }: StudyPanelProps) {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="living water, “good shepherd”"
+            placeholder={meaning ? "living water, verses about anxiety" : "living water, “good shepherd”"}
             aria-label="Search words"
             autoComplete="off"
             className="h-9 min-w-0 flex-1 rounded-md border border-stone-300 bg-white px-3 text-sm placeholder:text-stone-400 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-stone-500 dark:border-stone-700 dark:bg-stone-900"
@@ -69,7 +96,40 @@ export function SearchPanel({ bridge }: StudyPanelProps) {
             Search
           </button>
         </div>
-        <p className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">In the {abbrev}.</p>
+        {meaning && (
+          <div role="radiogroup" aria-label="Search by" className="mt-2 flex gap-3 text-xs">
+            {MODES.map((choice) => (
+              <label key={choice.mode} className="inline-flex cursor-pointer items-center gap-1">
+                <input
+                  type="radio"
+                  name="study-search-mode"
+                  checked={mode === choice.mode}
+                  onChange={() => change({ mode: choice.mode })}
+                  className="size-3.5 accent-stone-900 dark:accent-stone-100"
+                />
+                {choice.label}
+              </label>
+            ))}
+          </div>
+        )}
+        <div className="mt-2 flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+          <span className="shrink-0">In the {abbrev}:</span>
+          <select
+            value={scope}
+            onChange={(event) => change({ scope: event.target.value })}
+            aria-label="Search in"
+            className="h-7 min-w-0 flex-1 cursor-pointer rounded-md border border-stone-300 bg-white px-1 text-xs dark:border-stone-700 dark:bg-stone-900"
+          >
+            <option value="">The whole Bible</option>
+            <option value="ot">{TESTAMENT_NAMES.ot}</option>
+            <option value="nt">{TESTAMENT_NAMES.nt}</option>
+            {BOOKS.map((book) => (
+              <option key={book.usfm} value={bookSlug(book)}>
+                {book.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </form>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-busy={loading || undefined}>
@@ -83,8 +143,8 @@ export function SearchPanel({ bridge }: StudyPanelProps) {
             {!data.searchable
               ? "Those words are too common to search for."
               : data.total === 0
-                ? "No verses match."
-                : `${data.total.toLocaleString("en")} ${data.total === 1 ? "verse" : "verses"}.`}
+                ? `No ${unit}s match.`
+                : `${data.total.toLocaleString("en")} ${unit}${data.total === 1 ? "" : "s"}.`}
           </p>
         )}
         {data && data.hits.length > 0 && (
@@ -119,7 +179,9 @@ export function SearchPanel({ bridge }: StudyPanelProps) {
                     <button
                       type="button"
                       onClick={() =>
-                        bridge.read(chapterLabel(ref.book, ref.chapter), [{ start: hit.verseId, end: hit.verseId }])
+                        bridge.read(chapterLabel(ref.book, ref.chapter), [
+                          { start: hit.verseId, end: hit.endVerseId ?? hit.verseId },
+                        ])
                       }
                       aria-label={`Read ${hit.reference} in context`}
                       className={quiet}

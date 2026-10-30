@@ -317,7 +317,10 @@ export async function listTags(db: Db, ownerId: string): Promise<(TagName & { co
 export type ItemFilter = {
   ownerId: string;
   kind?: ItemKind;
+  // Only items of these kinds.
+  kinds?: readonly ItemKind[];
   color?: string;
+  visibility?: ItemVisibility;
   // Only items with this tag: a slug (src/lib/items/tags.ts).
   tag?: string;
   // Only items on verses that overlap these ranges: a passage, or a book
@@ -328,8 +331,9 @@ export type ItemFilter = {
   from?: string;
   to?: string;
   timeZone?: string;
-  // Only items whose title, text or note has these words in it, as typed
-  // (case aside). The editor's "My content" filter; M10 searches properly.
+  // Only items with these words: by full-text search over `item.search`, or
+  // with the text as typed inside their title, text or note (case aside),
+  // which finds a word while it is still being typed.
   text?: string;
   // Leaves this item out: the one being edited.
   except?: string;
@@ -338,10 +342,13 @@ export type ItemFilter = {
 // A LIKE pattern for text as typed: % and _ are themselves.
 export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, "\\$&")}%`;
 
-function matches({
+// The condition an ItemFilter stands for. For queries over `item`.
+export function itemCondition({
   ownerId,
   kind,
+  kinds,
   color,
+  visibility,
   tag: slug,
   ranges,
   from,
@@ -354,13 +361,15 @@ function matches({
   return and(
     eq(item.ownerId, ownerId),
     kind && eq(item.kind, kind),
+    kinds?.length ? inArray(item.kind, [...kinds]) : undefined,
     color ? eq(item.color, color) : undefined,
+    visibility && eq(item.visibility, visibility),
     slug ? taggedWith(ownerId, slug) : undefined,
     ranges && onPassage(ranges),
     from ? sql`${day} >= ${from}::date` : undefined,
     to ? sql`${day} <= ${to}::date` : undefined,
     text?.trim()
-      ? sql`(${item.title} ilike ${containsPattern(text.trim())} or ${item.markdown} ilike ${containsPattern(text.trim())} or ${item.note} ilike ${containsPattern(text.trim())})`
+      ? sql`(${item.search} @@ websearch_to_tsquery('english', ${text.trim()}) or ${item.title} ilike ${containsPattern(text.trim())} or ${item.markdown} ilike ${containsPattern(text.trim())} or ${item.note} ilike ${containsPattern(text.trim())})`
       : undefined,
     except ? sql`${item.id} <> ${except}` : undefined,
   )!;
@@ -377,7 +386,7 @@ export async function itemsOnPassage(
   const ids = await db
     .select({ id: item.id })
     .from(item)
-    .where(matches(filter))
+    .where(itemCondition(filter))
     .orderBy(item.createdAt, item.id);
   return loadItems(
     db,
@@ -391,7 +400,7 @@ export async function listItems(
   filter: ItemFilter,
   { limit, offset = 0 }: { limit: number; offset?: number },
 ): Promise<{ items: Item[]; total: number }> {
-  const where = matches(filter);
+  const where = itemCondition(filter);
   const [[{ total }], ids] = await Promise.all([
     db.select({ total: sql<number>`count(*)::int` }).from(item).where(where),
     db

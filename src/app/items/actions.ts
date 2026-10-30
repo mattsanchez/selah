@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { requireOwner } from "@/lib/auth/owner";
 import { listTranslations } from "@/lib/bible/passage";
+import { scheduleItemEmbedding } from "@/lib/embeddings/items";
 import { editItemPath, itemsPath } from "@/lib/items-url";
 import { documentPassages, passageCard } from "@/lib/items/cards";
 import {
@@ -113,6 +114,7 @@ export async function createDraftAction(input: DraftInput): Promise<CreateResult
     if (!valid.ok) return { ok: false, errors: valid.errors };
     id = await createItem(db, { ownerId: owner.id, kind, ...valid.value });
   }
+  scheduleItemEmbedding(id);
   const created = await getItem(db, { ownerId: owner.id, id });
   return { ok: true, id, savedAt: (created?.updatedAt ?? new Date()).toISOString() };
 }
@@ -159,6 +161,7 @@ export async function saveItemAction(input: {
   // page. The owner's other pages are rendered afresh when opened.
   const savedAt = await saveItemContent(db, ref, { ...valid.value, passages });
   if (!savedAt) return { ok: false, formError: GONE };
+  scheduleItemEmbedding(id);
   return { ok: true, savedAt: savedAt.toISOString() };
 }
 

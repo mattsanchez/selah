@@ -5,6 +5,8 @@ import {
   getAiProvider,
   resolveAiProviderName,
   STUB_EMBEDDING_DIMENSIONS,
+  STUB_EMBEDDING_MODEL,
+  VOYAGE_EMBEDDING_MODEL,
 } from "./index";
 
 describe("resolveAiProviderName", () => {
@@ -21,6 +23,26 @@ describe("resolveAiProviderName", () => {
     expect(() => resolveAiProviderName({ AI_PROVIDER: "anthropic" })).toThrow(
       /Unknown AI_PROVIDER "anthropic"/,
     );
+  });
+});
+
+describe("choosing a provider by key", () => {
+  it("turns on Voyage when AI_PROVIDER is unset and there is a key, from either place", () => {
+    expect(resolveAiProviderName({ VOYAGE_API_KEY: "pa-env" })).toBe("voyage");
+    expect(resolveAiProviderName({}, { voyage: "pa-saved" })).toBe("voyage");
+    expect(getAiProvider({}, { voyage: "pa-saved" }).embeddingModel).toBe(VOYAGE_EMBEDDING_MODEL);
+  });
+
+  it("has no provider without a key", () => {
+    expect(resolveAiProviderName({ VOYAGE_API_KEY: "  " })).toBe("none");
+    expect(resolveAiProviderName({ AI_PROVIDER: "voyage" })).toBe("none");
+    expect(getAiProvider({ AI_PROVIDER: "voyage" }).embeddingModel).toBeNull();
+  });
+
+  it("lets AI_PROVIDER win over any key", () => {
+    expect(resolveAiProviderName({ AI_PROVIDER: "stub", VOYAGE_API_KEY: "pa" })).toBe("stub");
+    expect(resolveAiProviderName({ AI_PROVIDER: "none" }, { voyage: "pa" })).toBe("none");
+    expect(resolveAiProviderName({ AI_PROVIDER: "voyage" }, { voyage: "pa" })).toBe("voyage");
   });
 });
 
@@ -59,5 +81,31 @@ describe("stub provider", () => {
     expect(again).toEqual(a);
     expect(b).not.toEqual(a);
     expect(Math.hypot(...a)).toBeCloseTo(1, 6);
+  });
+
+  it("names its model, so its vectors are never read as a real model's", () => {
+    expect(provider.embeddingModel).toBe(STUB_EMBEDDING_MODEL);
+  });
+
+  const cosine = (a: number[], b: number[]) => a.reduce((sum, value, i) => sum + value * b[i], 0);
+
+  it("makes texts similar as far as they share words, word forms included", async () => {
+    const [query, close, far] = await provider.embed([
+      "worried and troubled hearts",
+      "Do not let your hearts be troubled; do not worry.",
+      "The genealogy of the kings of Judah",
+    ]);
+    expect(cosine(query, close)).toBeGreaterThan(0.5);
+    expect(cosine(query, far)).toBeCloseTo(0, 1);
+  });
+
+  it("is not semantic: words it has not seen together are strangers", async () => {
+    const [a, b] = await provider.embed(["fear", "afraid"]);
+    expect(cosine(a, b)).toBeCloseTo(0, 5);
+  });
+
+  it("still gives a direction to text with no words in it", async () => {
+    const [vector] = await provider.embed(["the of and"]);
+    expect(Math.hypot(...vector)).toBeCloseTo(1, 6);
   });
 });

@@ -8,6 +8,7 @@ import type { TranslationInfo } from "@/lib/editor/types";
 
 import { MinePanel } from "./study-mine";
 import { ReadPanel } from "./study-read";
+import { RelatedPanel } from "./study-related";
 import { SearchPanel } from "./study-search";
 
 // The study sidebar beside the post: look up and read passages, search the
@@ -26,6 +27,10 @@ export type StudyBridge = {
   // sidebar reads and searches in.
   translations: TranslationInfo[];
   translationId: string;
+  // The ids of those that can be searched by meaning.
+  meaningTranslations: string[];
+  // The passages in the post as it stands, in order: what "Related" starts from.
+  postPassages: () => { reference: string; translation: string | null }[];
   // The post being written, once it is saved; "My content" leaves it out.
   itemId?: string;
   // Puts a passage block in the post where the cursor is.
@@ -47,6 +52,7 @@ export type StudyTab = { id: string; label: string; Panel: ComponentType<StudyPa
 export const STUDY_TABS: StudyTab[] = [
   { id: "read", label: "Read", Panel: ReadPanel },
   { id: "search", label: "Search", Panel: SearchPanel },
+  { id: "related", label: "Related", Panel: RelatedPanel },
   { id: "mine", label: "My content", Panel: MinePanel },
 ];
 

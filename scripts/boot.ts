@@ -1,8 +1,13 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 
+import { eq } from "drizzle-orm";
+
 import { runMigrations } from "../src/db/migrate";
+import { site } from "../src/db/schema";
+import { loadAiProvider } from "../src/lib/ai/load";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "../src/lib/auth/password";
+import { runEmbeddingJob } from "../src/lib/embeddings/job";
 import { publicUrl } from "../src/lib/env";
 import { runFirstBoot } from "../src/lib/first-boot/runner";
 import { bootStepStore } from "../src/lib/first-boot/store";
@@ -75,6 +80,15 @@ async function serve(): Promise<void> {
     );
     // Printed again so it is the last thing in the logs after a long import.
     if (!stopping && !(await ownerExists(db))) log(setupNotice());
+
+    // With a key already there, embed what is missing: resumes after a restart,
+    // and costs nothing once it is done. Without one, this is the Settings page's.
+    const provider = await loadAiProvider(process.env, db);
+    if (!stopping && provider.embeddingModel) {
+      const [row] = await db.select().from(site).where(eq(site.id, 1));
+      const outcome = await runEmbeddingJob(db, provider, { defaultId: row?.defaultTranslationId });
+      log(`boot: embeddings: ${outcome}`);
+    }
   } catch (error) {
     // The app keeps serving; its status page reports the steps as stalled.
     console.error("boot: first boot stopped unexpectedly", error);

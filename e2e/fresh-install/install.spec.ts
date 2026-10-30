@@ -119,6 +119,23 @@ test("setup cannot be run a second time", async ({ page }) => {
   await expect(page.locator("[data-result='43003016']").first()).toContainText(
     "For God so loved the world",
   );
+
+  // This install has AI off and no embeddings. Search is the keyword search,
+  // whatever is asked for, and nothing is said of what is missing.
+  for (const address of ["/search?q=loved+the+world", "/search?q=loved+the+world&mode=meaning"]) {
+    await page.goto(address);
+    await expect(page.locator("[data-search-status]")).toHaveText(/^\d+ verses? in the WEB\.$/);
+    await expect(page.locator("[data-result]").first().locator("mark").first()).toBeVisible();
+    await expect(page.getByRole("radio")).toHaveCount(0);
+    await expect(page.locator("main")).not.toContainText(/\bAI\b|Voyage|embedding|meaning|error/i);
+  }
+  await page.goto("/search");
+  await expect(page.locator("main")).not.toContainText(/\bAI\b|Voyage|embedding|by meaning/i);
+  await page.goto("/search?q=the+and+of&mode=both");
+  await expect(page.locator("[data-search-status]")).toContainText("too common");
+  // And the study panel has no "Related" section to show.
+  await page.goto("/read/john-3.16?v=john-3.16");
+  await expect(page.locator("[data-study-section='related']")).toHaveCount(0);
 });
 
 test("the owner signs out and in, and settings need the owner", async ({ page }) => {
@@ -162,6 +179,7 @@ test("the owner changes the settings later, and saved keys are never shown", asy
   await expect(page.getByLabel("Anthropic API key", { exact: true })).toHaveValue("");
   await expect(page.locator("[data-ai-key='voyage']")).toHaveAttribute("data-source", "none");
   expect(await page.content()).not.toContain(ANTHROPIC_KEY);
+  await expect(page.locator("[data-embedding-state='off']")).toContainText("Add a Voyage AI key");
 
   await page.getByLabel("Handle").fill("no spaces allowed");
   await page.getByRole("button", { name: "Save settings" }).click();

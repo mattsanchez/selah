@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db/client";
 import { AI_KEY_NAMES, withAiKeys, type AiKeyName } from "@/lib/ai/keys";
+import { loadAiProvider } from "@/lib/ai/load";
 import { requireOwner } from "@/lib/auth/owner";
 import { listTranslations } from "@/lib/bible/passage";
+import { runEmbeddingJob } from "@/lib/embeddings/job";
 import { validateSite, type Errors, type SiteField } from "@/lib/settings/validate";
 import { getSite, updateSite } from "@/lib/site";
 
@@ -73,4 +75,23 @@ export async function saveSettingsAction(
   // what the reader shows.
   revalidatePath("/", "layout");
   return { saved: true };
+}
+
+// "Start" or "Continue" in the settings' meaning search section. The run goes
+// on in this server after the answer; the page follows it in `embedding_job`.
+// Answers once the run has its row, so the page comes back showing it.
+export async function startEmbeddingAction(): Promise<void> {
+  await requireOwner("/settings");
+  const provider = await loadAiProvider();
+  if (!provider.embeddingModel) return;
+  const site = await getSite();
+  await new Promise<void>((resolve) => {
+    void runEmbeddingJob(getDb(), provider, {
+      defaultId: site?.defaultTranslationId,
+      onClaimed: resolve,
+    })
+      .catch(() => {})
+      .finally(resolve);
+  });
+  revalidatePath("/settings");
 }

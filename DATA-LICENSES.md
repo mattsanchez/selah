@@ -181,6 +181,10 @@ Each file is redistributed unmodified, under the terms above, which were read ag
 The release carries a `NOTICES.md` with each file's license notice and attribution, and a `MANIFEST.json` with each file's upstream address, download date, size and checksums.
 Nothing else is in it: no code, and nothing that is not public domain or openly licensed.
 
+## Embeddings
+
+Meaning search embeds the verses of public-domain translations (BSB, WEB, and optionally others stored locally) on each install, with the owner's own Voyage AI key. No embeddings of the full Bible are committed, mirrored or part of a data release. Commentary and Tyndale Open Study Notes are not embedded.
+
 ## Fonts
 
 The public site and its Open Graph images use Source Serif 4 by Adobe, version 4.005, from <https://github.com/adobe-fonts/source-serif>.

@@ -5,6 +5,8 @@ type ReferenceFormProps = {
   value?: string;
   // The `t` parameter to keep across a lookup, so the translations stay chosen.
   t?: string;
+  // The `mode` parameter to keep across searches.
+  mode?: string;
   // Why the last lookup failed.
   error?: string;
 };
@@ -13,7 +15,7 @@ type ReferenceFormProps = {
 // passage, anything else searches the text. A plain GET form to /search, so
 // it works without JavaScript; /search tells the two apart (interpretQuery in
 // src/lib/search-url.ts) and redirects a reference to the passage.
-export function ReferenceForm({ value = "", t, error }: ReferenceFormProps) {
+export function ReferenceForm({ value = "", t, mode, error }: ReferenceFormProps) {
   return (
     <form
       action="/search"
@@ -40,6 +42,7 @@ export function ReferenceForm({ value = "", t, error }: ReferenceFormProps) {
           className="h-10 min-w-0 flex-1 rounded-md border border-stone-300 bg-white px-3 text-base shadow-xs placeholder:text-stone-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 aria-invalid:border-red-600 dark:border-stone-700 dark:bg-stone-900"
         />
         {t && <input type="hidden" name="t" value={t} />}
+        {mode && <input type="hidden" name="mode" value={mode} />}
         <Button type="submit">Go</Button>
       </div>
       {error ? (

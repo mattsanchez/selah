@@ -80,8 +80,8 @@ export function SettingsForm({ site, translations, aiKeys }: SettingsFormProps) 
       <fieldset className="space-y-5">
         <legend className="font-serif text-2xl tracking-tight">AI keys</legend>
         <p className="text-sm text-stone-600 dark:text-stone-400">
-          Optional. Selah works without them; the AI features that use them arrive in a
-          later version.
+          Optional. Selah works without them. A Voyage AI key turns on search by meaning and
+          related passages; the Anthropic key is for a later version.
         </p>
         {aiKeys.map((key) => {
           const field = `${key.name}ApiKey` as const;

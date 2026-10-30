@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useOptimistic, useTransition } from "react";
 
 import { BOOKS } from "@/lib/bible/books";
+import type { SearchMode } from "@/lib/bible/search";
 import {
   TESTAMENT_NAMES,
   bookSlug,
   parseScope,
   scopeParam,
+  searchModeParam,
   searchPath,
   searchTranslationParam,
   testamentOf,
@@ -23,34 +25,45 @@ type SearchFiltersProps = {
   selected: readonly string[];
   defaultId: string;
   scope?: SearchScope;
+  mode: SearchMode;
+  // Whether this search can go by meaning; otherwise nothing is said of modes.
+  meaning: boolean;
 };
+
+const MODES: readonly { mode: SearchMode; label: string; title: string }[] = [
+  { mode: "keyword", label: "Keyword", title: "Verses with these words" },
+  { mode: "meaning", label: "Meaning", title: "Passages about this, whatever their words" },
+  { mode: "both", label: "Both", title: "The two together" },
+];
 
 const TESTAMENTS: readonly Testament[] = ["ot", "nt"];
 
 const control =
   "h-9 rounded-md border border-stone-300 bg-white text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 dark:border-stone-700 dark:bg-stone-900";
 
-// Narrows a search: which translations, and the whole Bible, a testament or
-// one book. Each change is a navigation to the search's own URL, back on its
+// Narrows a search: how to rank it, which translations, and the whole Bible, a
+// testament or one book. Each change is a navigation to the search's own URL, back on its
 // first page. Without JavaScript it is a GET form with an Apply button.
-export function SearchFilters({ q, translations, defaultId, ...current }: SearchFiltersProps) {
+export function SearchFilters({ q, translations, defaultId, meaning, ...current }: SearchFiltersProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   // The controls show a choice at once, while its results load.
-  const [{ selected, scope }, show] = useOptimistic({
+  const [{ selected, scope, mode }, show] = useOptimistic({
     selected: current.selected,
     scope: current.scope,
+    mode: current.mode,
   });
   const ids = translations.map((translation) => translation.id);
 
-  function go(change: { selected?: readonly string[]; scope?: SearchScope }) {
-    const next = { selected, scope, ...change };
+  function go(change: { selected?: readonly string[]; scope?: SearchScope; mode?: SearchMode }) {
+    const next = { selected, scope, mode, ...change };
     // At least one translation.
     if (next.selected.length === 0) return;
     const path = searchPath({
       q,
       t: searchTranslationParam(next.selected, ids, defaultId),
       scope: next.scope,
+      mode: searchModeParam(next.mode, meaning),
     });
     startTransition(() => {
       show(next);
@@ -67,6 +80,25 @@ export function SearchFilters({ q, translations, defaultId, ...current }: Search
       className="flex flex-wrap items-center gap-x-6 gap-y-3"
     >
       <input type="hidden" name="q" value={q} />
+
+      {meaning && (
+        <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <legend className="float-left mr-3 text-sm font-medium">Search by</legend>
+          {MODES.map((choice) => (
+            <label key={choice.mode} title={choice.title} className="inline-flex items-center gap-1.5 text-sm">
+              <input
+                type="radio"
+                name="mode"
+                value={choice.mode}
+                checked={mode === choice.mode}
+                onChange={() => go({ mode: choice.mode })}
+                className="size-4 accent-stone-900 dark:accent-stone-100"
+              />
+              {choice.label}
+            </label>
+          ))}
+        </fieldset>
+      )}
 
       <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <legend className="float-left mr-3 text-sm font-medium">Translations</legend>

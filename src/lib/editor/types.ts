@@ -1,6 +1,8 @@
 import type { Translation } from "@/lib/bible/passage";
 import type { VerseRecord } from "@/lib/bible/types";
+import type { SearchMode } from "@/lib/bible/search";
 import type { VerseRange } from "@/lib/bible/verse-id";
+import type { RelatedResult } from "@/lib/embeddings/related";
 import { CARD_CHARS } from "@/lib/items/card-length";
 import type { HighlightColorId } from "@/lib/items/palette";
 import type { ItemKind, ItemVisibility } from "@/lib/items/queries";
@@ -44,6 +46,9 @@ export type PassageData =
 
 export type SearchHitView = {
   verseId: number;
+  // The last verse, when the hit is a passage of several.
+  endVerseId?: number;
+  // The whole hit: "John 14:1-4".
   reference: string;
   translationId: string;
   text: { text: string; match: boolean }[];
@@ -53,6 +58,17 @@ export type SearchData = {
   hits: SearchHitView[];
   total: number;
   searchable: boolean;
+  // How the hits were ranked. "keyword" also when another mode was asked for
+  // and could not be used.
+  mode: SearchMode;
+};
+
+// Passages related to one, for the sidebar's "Related".
+export type RelatedData = RelatedResult & {
+  // The passage they are related to, as formatReference() writes it.
+  reference: string;
+  // The translation they are quoted in.
+  translation: TranslationInfo;
 };
 
 // One of the owner's items in "My content".
@@ -79,6 +95,8 @@ export type ContentData = {
   items: ContentItem[];
   total: number;
   tags: TagName[];
+  // Whether a search can also go by meaning here.
+  meaning: boolean;
 };
 
 // The key a passage is known by on the client: which use, which reference

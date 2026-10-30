@@ -22,13 +22,14 @@ export function itemName(item: ContentItem): string {
   return item.kind === "reflection" ? "Untitled reflection" : "Note";
 }
 
-type Filters = { q: string; tag: string; passage: string };
+type Filters = { q: string; tag: string; passage: string; exact: boolean };
 
-// "My content": the owner's highlights, notes and reflections, newest first,
-// filtered by words, tag and passage. A highlight goes into the post as its
-// passage; a note or a reflection as a link to it.
+// "My content": the owner's highlights, notes and reflections: newest first,
+// or best first once there are words to search for, narrowed by tag and
+// passage (searchItems). A highlight goes into the post as its passage; a note
+// or a reflection as a link to it; and any of them opens in a new tab.
 export function MinePanel({ bridge, active }: StudyPanelProps) {
-  const [filters, setFilters] = useState<Filters>({ q: "", tag: "", passage: "" });
+  const [filters, setFilters] = useState<Filters>({ q: "", tag: "", passage: "", exact: false });
   const [data, setData] = useState<ContentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,6 +45,7 @@ export function MinePanel({ bridge, active }: StudyPanelProps) {
           tag: wanted.tag,
           passage: wanted.passage,
           offset: String(offset),
+          ...(wanted.exact && { exact: "1" }),
           ...(bridge.itemId && { except: bridge.itemId }),
         })}`,
       );
@@ -69,7 +71,7 @@ export function MinePanel({ bridge, active }: StudyPanelProps) {
   if (active && !opened) setOpened(true);
   useEffect(() => {
     if (!opened) return;
-    const timer = setTimeout(() => void load(filters), filters.q || filters.passage ? 250 : 0);
+    const timer = setTimeout(() => void load(filters), filters.q || filters.passage ? 300 : 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened, filters]);
@@ -121,6 +123,17 @@ export function MinePanel({ bridge, active }: StudyPanelProps) {
             ))}
           </select>
         </div>
+        {data?.meaning && filters.q && (
+          <label className="flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300">
+            <input
+              type="checkbox"
+              checked={filters.exact}
+              onChange={(event) => set({ exact: event.target.checked })}
+              className="size-3.5 accent-stone-900 dark:accent-stone-100"
+            />
+            These words only, not similar meaning
+          </label>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4" aria-busy={loading || undefined}>
@@ -162,7 +175,7 @@ export function MinePanel({ bridge, active }: StudyPanelProps) {
                 {item.kind !== "highlight" && item.reference && (
                   <p className="text-xs text-stone-500 dark:text-stone-400">On {item.reference}</p>
                 )}
-                <div className="mt-1">
+                <div className="mt-1 flex gap-1">
                   {(item.kind !== "highlight" || bridge.passages) && (
                     <button
                       type="button"
@@ -175,6 +188,15 @@ export function MinePanel({ bridge, active }: StudyPanelProps) {
                       {item.kind === "highlight" ? "Insert passage" : "Insert link"}
                     </button>
                   )}
+                  <a
+                    href={itemLinkPath(item.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${itemName(item)}`}
+                    className={quiet}
+                  >
+                    Open
+                  </a>
                 </div>
               </li>
             ))}
