@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   check,
   customType,
+  date,
   index,
   integer,
   jsonb,
@@ -16,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { EMBEDDING_DIMENSIONS } from "../lib/ai/types";
+import type { SavedAnswer } from "@/lib/ask/store-types";
 import type { Break, Footnote, Heading, Span } from "@/lib/bible/types";
 import type { SiteSettings } from "@/lib/site-settings";
 
@@ -380,4 +382,27 @@ export const embeddingJob = pgTable(
     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
   },
   (table) => [check("embedding_job_single_row", sql`${table.id} = 1`)],
+);
+
+// Answers already given, so a repeat costs nothing. `key` covers the passage,
+// translation, question and model (src/lib/ask/store.ts); the rest is there
+// to be read.
+export const askAnswer = pgTable("ask_answer", {
+  key: text().primaryKey(),
+  passage: text().notNull(),
+  translationId: text("translation_id").notNull(),
+  question: text().notNull(),
+  model: text().notNull(),
+  answer: jsonb().$type<SavedAnswer>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// How many questions reached the model on a day (UTC), for the daily cap.
+export const askUsage = pgTable(
+  "ask_usage",
+  {
+    day: date({ mode: "string" }).primaryKey(),
+    questions: integer().notNull().default(0),
+  },
+  (table) => [check("ask_usage_not_negative", sql`${table.questions} >= 0`)],
 );

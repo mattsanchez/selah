@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_DAILY_CAP,
   emailError,
   handleError,
   normalizeEmail,
   normalizeHandle,
+  parseDailyCap,
   passwordError,
   validateSetup,
   validateSite,
@@ -116,5 +118,19 @@ describe("validateSetup", () => {
   it("reports account and site problems together", () => {
     const result = validateSetup({ ...setup, email: "nope", password: "short", handle: "" }, LOADED);
     expect(result.ok || Object.keys(result.errors).sort()).toEqual(["email", "handle", "password"]);
+  });
+});
+
+describe("parseDailyCap", () => {
+  it("takes a whole number in range", () => {
+    expect(parseDailyCap(" 25 ")).toEqual({ cap: 25 });
+    expect(parseDailyCap("1")).toEqual({ cap: 1 });
+    expect(parseDailyCap(String(MAX_DAILY_CAP))).toEqual({ cap: MAX_DAILY_CAP });
+  });
+
+  it("refuses anything else", () => {
+    for (const typed of ["", "  ", "0", "-1", "1.5", "lots", String(MAX_DAILY_CAP + 1)]) {
+      expect(parseDailyCap(typed)).toHaveProperty("error");
+    }
   });
 });

@@ -23,7 +23,9 @@ const provider = (embed = vi.fn(async (texts: string[]) => texts.map(() => [1]))
   enabled: true,
   embeddingModel: "test-model",
   minSimilarity: 0,
+  answerModel: null,
   complete: async () => ({ text: "" }),
+  stream: async function* () {},
   embed,
 });
 

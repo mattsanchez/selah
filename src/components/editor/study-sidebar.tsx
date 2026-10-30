@@ -3,9 +3,11 @@
 import { Tabs } from "radix-ui";
 import { useState, type ComponentType } from "react";
 
+import type { SourceQuote } from "@/lib/ask/quote";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import type { TranslationInfo } from "@/lib/editor/types";
 
+import { AskPanel } from "./study-ask";
 import { MinePanel } from "./study-mine";
 import { ReadPanel } from "./study-read";
 import { RelatedPanel } from "./study-related";
@@ -15,9 +17,9 @@ import { SearchPanel } from "./study-search";
 // Bible, find what the owner has made, and put any of it in the post.
 //
 // Each tab is an entry of STUDY_TABS: a label and a panel that gets the
-// bridge to the editor. A later tab ("Ask", "Suggest": M11) is one more
-// entry; its panel puts passages in the post with
-// bridge.insertPassage(reference, translation), as these do.
+// bridge to the editor. Its panel puts passages in the post with
+// bridge.insertPassage(reference, translation), as these do. A tab with
+// `when` is there only when the bridge says so.
 
 // What a panel can do with the post, and what it shares with the others.
 export type StudyBridge = {
@@ -27,6 +29,8 @@ export type StudyBridge = {
   // sidebar reads and searches in.
   translations: TranslationInfo[];
   translationId: string;
+  // Whether this install can answer questions.
+  ask: boolean;
   // The ids of those that can be searched by meaning.
   meaningTranslations: string[];
   // The passages in the post as it stands, in order: what "Related" starts from.
@@ -35,6 +39,9 @@ export type StudyBridge = {
   itemId?: string;
   // Puts a passage block in the post where the cursor is.
   insertPassage: (reference: string, translation: string) => void;
+  // Puts a quote from a commentary or note in the post where the cursor is:
+  // a blockquote of the words and their credit.
+  insertQuote: (quote: SourceQuote) => void;
   // Puts a link in the text where the cursor is.
   insertLink: (text: string, href: string) => void;
   // Opens "Read" on a passage, with these verses selected.
@@ -47,12 +54,18 @@ export type ReadRequest = { query: string; select?: VerseRange[]; focus?: boolea
 
 export type StudyPanelProps = { bridge: StudyBridge; active: boolean };
 
-export type StudyTab = { id: string; label: string; Panel: ComponentType<StudyPanelProps> };
+export type StudyTab = {
+  id: string;
+  label: string;
+  Panel: ComponentType<StudyPanelProps>;
+  when?: (bridge: Pick<StudyBridge, "ask">) => boolean;
+};
 
 export const STUDY_TABS: StudyTab[] = [
   { id: "read", label: "Read", Panel: ReadPanel },
   { id: "search", label: "Search", Panel: SearchPanel },
   { id: "related", label: "Related", Panel: RelatedPanel },
+  { id: "ask", label: "Ask", Panel: AskPanel, when: (bridge) => bridge.ask },
   { id: "mine", label: "My content", Panel: MinePanel },
 ];
 
@@ -70,16 +83,17 @@ type StudySidebarProps = {
 export function StudySidebar({ bridge, tab, onTab, sheet, onClose, onTranslation }: StudySidebarProps) {
   const [translationId, setTranslationId] = useState(bridge.translations[0]?.id ?? "");
   const full: StudyBridge = { ...bridge, translationId };
+  const tabs = STUDY_TABS.filter(({ when }) => !when || when(bridge));
 
   return (
     <Tabs.Root value={tab} onValueChange={onTab} className="flex h-full flex-col font-sans">
       <div className="flex items-center gap-2 border-b border-stone-200 px-3 dark:border-stone-800">
-        <Tabs.List aria-label="Study" className="flex min-w-0 flex-1 gap-1">
-          {STUDY_TABS.map(({ id, label }) => (
+        <Tabs.List aria-label="Study" className="flex min-w-0 flex-1 gap-0.5 overflow-x-auto [scrollbar-width:none]">
+          {tabs.map(({ id, label }) => (
             <Tabs.Trigger
               key={id}
               value={id}
-              className="-mb-px cursor-pointer border-b-2 border-transparent px-2 py-3 text-sm font-medium whitespace-nowrap text-stone-500 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-stone-500 data-[state=active]:border-stone-900 data-[state=active]:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 dark:data-[state=active]:border-stone-100 dark:data-[state=active]:text-stone-100"
+              className="-mb-px shrink-0 cursor-pointer border-b-2 border-transparent px-1.5 py-3 text-sm font-medium whitespace-nowrap text-stone-500 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-stone-500 data-[state=active]:border-stone-900 data-[state=active]:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 dark:data-[state=active]:border-stone-100 dark:data-[state=active]:text-stone-100"
             >
               {label}
             </Tabs.Trigger>
@@ -116,7 +130,7 @@ export function StudySidebar({ bridge, tab, onTab, sheet, onClose, onTranslation
           </button>
         )}
       </div>
-      {STUDY_TABS.map(({ id, Panel }) => (
+      {tabs.map(({ id, Panel }) => (
         // Kept mounted, so a panel keeps what it shows while another is open.
         <Tabs.Content key={id} value={id} forceMount className="min-h-0 flex-1 focus-visible:outline-none data-[state=inactive]:hidden">
           <Panel bridge={full} active={tab === id} />

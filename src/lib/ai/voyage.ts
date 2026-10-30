@@ -2,7 +2,8 @@ import { AiDisabledError } from "./none";
 import { EMBEDDING_DIMENSIONS, type AiProvider, type EmbedOptions } from "./types";
 
 // Embeddings from Voyage AI over its REST API (Claude has no embeddings
-// endpoint). Only `embed` works: Q&A is a later provider's.
+// endpoint). Only `embed` works: answers are Claude's (src/lib/ai/claude.ts),
+// and getAiProvider() puts the two together on an install with both keys.
 //
 // A vector is only comparable with vectors of the same model, so this name is
 // stored with every one of them. Changing it makes every stored vector stale:
@@ -158,7 +159,11 @@ export function createVoyageProvider({
     enabled: true,
     embeddingModel: VOYAGE_EMBEDDING_MODEL,
     minSimilarity: MIN_SIMILARITY,
+    answerModel: null,
     async complete() {
+      throw new AiDisabledError();
+    },
+    async *stream() {
       throw new AiDisabledError();
     },
     async embed(texts, { inputType } = {}) {

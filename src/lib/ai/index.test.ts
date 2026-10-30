@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   AiDisabledError,
+  CLAUDE_ANSWER_MODEL,
+  STUB_ANSWER_MODEL,
   getAiProvider,
   resolveAiProviderName,
   STUB_EMBEDDING_DIMENSIONS,
@@ -46,6 +48,40 @@ describe("choosing a provider by key", () => {
   });
 });
 
+describe("Claude and Voyage together", () => {
+  const keys = { anthropic: "sk-ant-test", voyage: "pa-test" };
+
+  it("has either, both or neither, by key", () => {
+    expect(resolveAiProviderName({}, { anthropic: "sk-ant-test" })).toBe("claude");
+    expect(resolveAiProviderName({ ANTHROPIC_API_KEY: "sk-ant-test" })).toBe("claude");
+    expect(resolveAiProviderName({}, keys)).toBe("claude+voyage");
+    expect(resolveAiProviderName({}, {})).toBe("none");
+  });
+
+  it("answers with Claude and embeds with Voyage when it has both", () => {
+    const provider = getAiProvider({}, keys);
+    expect(provider.answerModel).toBe(CLAUDE_ANSWER_MODEL);
+    expect(provider.embeddingModel).toBe(VOYAGE_EMBEDDING_MODEL);
+  });
+
+  it("does not answer with Voyage alone, nor embed with Claude alone", () => {
+    expect(getAiProvider({}, { voyage: "pa" }).answerModel).toBeNull();
+    expect(getAiProvider({}, { anthropic: "sk" }).embeddingModel).toBeNull();
+  });
+
+  it("lets AI_PROVIDER win over keys, and treats a provider without its key as none", () => {
+    expect(getAiProvider({ AI_PROVIDER: "stub" }, keys).answerModel).toBe(STUB_ANSWER_MODEL);
+    expect(getAiProvider({ AI_PROVIDER: "none" }, keys).enabled).toBe(false);
+    expect(resolveAiProviderName({ AI_PROVIDER: "claude" })).toBe("none");
+    expect(getAiProvider({ AI_PROVIDER: "voyage" }, keys).answerModel).toBeNull();
+    expect(getAiProvider({ AI_PROVIDER: "claude" }, keys).embeddingModel).toBeNull();
+  });
+
+  it("never holds a key where it could be serialized", () => {
+    expect(JSON.stringify(getAiProvider({}, keys))).not.toContain("test");
+  });
+});
+
 describe("none provider", () => {
   it("is disabled and refuses calls", async () => {
     const provider = getAiProvider({});
@@ -61,6 +97,22 @@ describe("none provider", () => {
 
 describe("stub provider", () => {
   const provider = getAiProvider({ AI_PROVIDER: "stub" });
+
+  it("answers a question from its context, in the contract's two sections, in pieces", async () => {
+    const content =
+      `<context><item id="43003016" kind="passage" ref="John 3:16" translation="BSB">For God so loved the world</item>\n` +
+      `<item id="c1" kind="study-note" source="Tyndale Open Study Notes (Protestant evangelical tradition)" on="John 3:16" license="CC BY-SA 4.0">God gave his Son</item></context>\n` +
+      `<question>Why?</question>`;
+    const pieces: string[] = [];
+    for await (const piece of provider.stream({ messages: [{ role: "user", content }] })) pieces.push(piece);
+    const text = pieces.join("");
+    expect(pieces.length).toBeGreaterThan(3);
+    expect(text).toBe((await provider.complete({ messages: [{ role: "user", content }] })).text);
+    expect(text).toContain("## What the text says");
+    expect(text).toContain("## Interpretation");
+    expect(text).toContain("[[43003016]]");
+    expect(text).toContain('<quote source="c1">God gave his Son</quote>');
+  });
 
   it("echoes the last user message", async () => {
     const completion = await provider.complete({
