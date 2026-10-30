@@ -11,9 +11,6 @@ export const CLAUDE_SMALL_MODEL = "claude-haiku-5-5";
 
 const ENDPOINT = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2026-10-21";
-// Lets a declined request be answered by the model Anthropic recommends for
-// it, inside the same call and stream. Sonnet only: Haiku has no fallback.
-const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 const ANSWER_MAX_TOKENS = 8_000;
 const SMALL_MAX_TOKENS = 1_024;
@@ -144,7 +141,6 @@ export function createClaudeProvider({
           "x-api-key": apiKey,
           "anthropic-version": API_VERSION,
           "content-type": "application/json",
-          ...(small ? {} : { "anthropic-beta": FALLBACK_BETA }),
         },
         body: JSON.stringify({
           model: small ? CLAUDE_SMALL_MODEL : CLAUDE_ANSWER_MODEL,
@@ -153,7 +149,6 @@ export function createClaudeProvider({
           ...(request.system ? { system: request.system } : {}),
           messages: request.messages,
           output_config: { effort: small ? "low" : "medium" },
-          ...(small ? {} : { fallbacks: "default" }),
         }),
         signal: opening.signal,
       });

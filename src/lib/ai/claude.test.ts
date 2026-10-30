@@ -77,17 +77,18 @@ describe("the Claude client", () => {
     expect(headers["anthropic-version"]).toBe("2026-10-21");
     expect(sent).toMatchObject({ model: CLAUDE_ANSWER_MODEL, stream: true, system: "Be brief.", messages: ask.messages });
     expect(init.body).not.toContain(KEY);
+    // A plain request: the pinned model answers, or nothing does.
+    expect(sent.fallbacks).toBeUndefined();
+    expect(headers["anthropic-beta"]).toBeUndefined();
   });
 
-  it("sends a small task to the small model, without the fallback that model lacks", async () => {
+  it("sends a small task to the small model", async () => {
     const { provider, send } = client(respond(WHOLE));
     await provider.complete({ ...ask, tier: "small", maxTokens: 16 });
     const [, init] = send.mock.calls[0] as unknown as [string, RequestInit];
     const sent = JSON.parse(init.body as string);
     expect(sent.model).toBe(CLAUDE_SMALL_MODEL);
     expect(sent.max_tokens).toBe(16);
-    expect(sent.fallbacks).toBeUndefined();
-    expect((init.headers as Record<string, string>)["anthropic-beta"]).toBeUndefined();
   });
 
   it("streams text as it comes and leaves thinking out", async () => {

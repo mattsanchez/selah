@@ -553,7 +553,7 @@ A search costs one short query, and is free when it repeats one recently asked. 
 
 ## Ask
 
-With an Anthropic key, the owner can ask about the passage open in the reader, or in the editor's study sidebar while writing. Answers come from Claude (`claude-sonnet-5-5`), grounded in the passage and its study sources, with what the text says kept apart from how people have read it. Without a key nothing here exists: no link, no tab, no line on any page but Settings.
+With an Anthropic key, the owner can ask about the passage open in the reader, or in the editor's study sidebar while writing. Answers come from Claude (`claude-sonnet-5-5`, with no fallback to another model), grounded in the passage and its study sources, with what the text says kept apart from how people have read it. Without a key nothing here exists: no link, no tab, no line on any page but Settings.
 
 **Turning it on.** Paste an Anthropic API key under "AI keys" in Settings, or set `ANTHROPIC_API_KEY`, which wins over a saved key. "Test the key" makes one very small call. `AI_PROVIDER=none` keeps Ask off whatever keys there are. Ask does not need a Voyage key; with one, it also reads passages found by meaning, and without one it uses keyword matches.
 

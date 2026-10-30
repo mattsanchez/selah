@@ -6,7 +6,7 @@ Nothing the model writes is trusted as it stands. The model proposes; `answer.ts
 
 ## What is sent
 
-One request to the Messages API, from the server, with the owner's key. The model is `CLAUDE_ANSWER_MODEL` in `src/lib/ai/claude.ts`, the one place model names are pinned.
+One plain request to the Messages API, from the server, with the owner's key: no beta features and no fallback model. The model is `CLAUDE_ANSWER_MODEL` in `src/lib/ai/claude.ts`, the one place model names are pinned, so the model in a saved answer's key is the one that wrote it. If Claude declines, the page says so.
 
 - `system`: `ASK_SYSTEM_PROMPT`.
 - `messages`: the context and question, after the earlier turns of the conversation (at most three).
