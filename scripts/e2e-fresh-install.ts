@@ -92,7 +92,9 @@ if (command === "reset") {
         SELAH_URL: `http://127.0.0.1:${port}`,
         // Magic links are tested here; the stub writes them to a file.
         EMAIL_TRANSPORT: "stub",
-        AI_PROVIDER: "stub",
+        // An install with AI off: no embeddings, and the key saved in journey 1
+        // is never used. Keyword search is what is left, and all that is said.
+        AI_PROVIDER: "none",
       },
     },
   );

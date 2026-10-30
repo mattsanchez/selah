@@ -11,6 +11,8 @@ export class AiDisabledError extends Error {
 export const noneProvider: AiProvider = {
   name: "none",
   enabled: false,
+  embeddingModel: null,
+  minSimilarity: 0,
   async complete() {
     throw new AiDisabledError();
   },

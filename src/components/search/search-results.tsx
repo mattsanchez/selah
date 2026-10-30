@@ -30,9 +30,9 @@ type SearchResultsProps = {
   defaultId: string;
 };
 
-// A page of search hits: for each, the reference (a link that opens the verse
-// in the reader, in the translation it was found in), the translation, the
-// verse with matches marked, and any heading the search matched. Under the list, the attribution
+// A page of search hits: for each, the reference (a link that opens the verse,
+// or the whole passage, in the reader, in the translation it was found in),
+// the translation, the text with matches marked, and any heading the search matched. Under the list, the attribution
 // of each translation quoted.
 export function SearchResults({ hits, translations, defaultId }: SearchResultsProps) {
   const byId = new Map(translations.map((translation) => [translation.id, translation]));
@@ -45,7 +45,9 @@ export function SearchResults({ hits, translations, defaultId }: SearchResultsPr
       <ol className="divide-y divide-stone-200 dark:divide-stone-800">
         {hits.map((hit) => {
           const translation = byId.get(hit.translationId);
-          const verse = verseRange(hit.verseId);
+          const verse = hit.endVerseId
+            ? [{ start: hit.verseId, end: hit.endVerseId }]
+            : verseRange(hit.verseId);
           return (
             <li
               key={`${hit.translationId}-${hit.verseId}`}

@@ -1,4 +1,5 @@
-import type { ItemKind } from "@/lib/items/queries";
+import { highlightColor } from "@/lib/items/palette";
+import type { ItemKind, ItemVisibility } from "@/lib/items/queries";
 import { tagSlug } from "@/lib/items/tags";
 
 // The owner's own pages for what they have made.
@@ -7,6 +8,11 @@ import { tagSlug } from "@/lib/items/tags";
 //   /items?kind=reflection     ... of one kind
 //   /items?tag=grace           ... with one tag
 //   /items?page=2              ... twenty to a page
+//   /items?q=vine              ... with these words, or close to them in meaning
+//   /items?q=vine&exact=1      ... with these words only
+//   /items?passage=john+15     ... on verses that overlap this passage
+//   /items?color=amber         ... of one highlight color
+//   /items?visibility=public   ... this visible
 //   /items/<id>                an item, as a post links to it (see below)
 //   /items/<id>/edit           the editor of a reflection or a note
 //   /write                     a new reflection, in the editor
@@ -19,23 +25,50 @@ export const ITEMS_PAGE_SIZE = 20;
 
 const KINDS: readonly ItemKind[] = ["highlight", "reflection", "note"];
 
-export type ItemFilters = { kind?: ItemKind; tag?: string; page?: number };
+const VISIBILITIES: readonly ItemVisibility[] = ["private", "unlisted", "public"];
 
-type Params = { kind?: string; tag?: string; page?: string };
+const MAX_SEARCH_LENGTH = 200;
 
-export function parseItemFilters({ kind, tag, page }: Params): ItemFilters {
+export type ItemFilters = {
+  kind?: ItemKind;
+  tag?: string;
+  page?: number;
+  q?: string;
+  // A passage as typed; the page parses it and says if it cannot.
+  passage?: string;
+  color?: string;
+  visibility?: ItemVisibility;
+  // Words only, not meaning.
+  exact?: boolean;
+};
+
+type Params = Partial<Record<keyof ItemFilters, string>>;
+
+const typed = (value: string | undefined) => value?.trim().slice(0, MAX_SEARCH_LENGTH) || undefined;
+
+export function parseItemFilters({ kind, tag, page, q, passage, color, visibility, exact }: Params): ItemFilters {
   const number = /^\d{1,6}$/.test(page ?? "") ? Number(page) : 1;
   return {
     kind: KINDS.find((known) => known === kind),
     tag: (tag && tagSlug(tag)) || undefined,
     page: number > 1 ? number : undefined,
+    q: typed(q),
+    passage: typed(passage),
+    color: highlightColor(color)?.id,
+    visibility: VISIBILITIES.find((known) => known === visibility),
+    exact: exact === "1" || undefined,
   };
 }
 
-export function itemsPath({ kind, tag, page = 1 }: ItemFilters = {}): string {
+export function itemsPath({ kind, tag, page = 1, q, passage, color, visibility, exact }: ItemFilters = {}): string {
   const query = [
+    q && `q=${encodeURIComponent(q)}`,
+    passage && `passage=${encodeURIComponent(passage)}`,
     kind && `kind=${kind}`,
     tag && `tag=${encodeURIComponent(tag)}`,
+    color && `color=${color}`,
+    visibility && `visibility=${visibility}`,
+    exact && "exact=1",
     page > 1 && `page=${page}`,
   ].filter(Boolean);
   return query.length > 0 ? `/items?${query.join("&")}` : "/items";

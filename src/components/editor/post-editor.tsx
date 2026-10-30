@@ -48,6 +48,8 @@ export type PostEditorProps = {
   publishedAt: string | null;
   // Every loaded translation, the site's default first.
   translations: TranslationInfo[];
+  // The ids of those that can be searched by meaning.
+  meaningTranslations: string[];
   // The verses of the cards the post opens with (src/components/editor/passages.ts).
   passages: Record<string, PassageData>;
   // A note's verses: for a new one, as the reader selected them.
@@ -303,9 +305,19 @@ export function PostEditor(props: PostEditorProps) {
   const bridge: Omit<StudyBridge, "translationId"> = {
     passages: reflection,
     translations,
+    meaningTranslations: props.meaningTranslations,
     itemId: autosave.id,
     reading,
     read: openRead,
+    postPassages: () => {
+      const found: { reference: string; translation: string | null }[] = [];
+      editor?.state.doc.forEach((node) => {
+        if (node.type.name === "passage") {
+          found.push({ reference: node.attrs.reference, translation: node.attrs.translation ?? null });
+        }
+      });
+      return anchor ? [{ reference: anchor.reference, translation: null }, ...found] : found;
+    },
     insertPassage: (reference, translation) => {
       if (!editor) return;
       editor.chain().focus().insertPassage({ reference, translation }).run();

@@ -12,8 +12,10 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from "drizzle-orm/pg-core";
 
+import { EMBEDDING_DIMENSIONS } from "../lib/ai/types";
 import type { Break, Footnote, Heading, Span } from "@/lib/bible/types";
 import type { SiteSettings } from "@/lib/site-settings";
 
@@ -233,10 +235,17 @@ export const item = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // What the owner's search matches (src/lib/items/search.ts): the title at
+    // weight A, the note and the Markdown at weight B. Kept up to date by
+    // Postgres; never written or read as a value.
+    search: tsvector().generatedAlwaysAs(
+      sql`setweight(to_tsvector('english'::regconfig, coalesce("title", '')), 'A') || setweight(to_tsvector('english'::regconfig, coalesce("note", '') || ' ' || coalesce("markdown", '')), 'B')`,
+    ),
   },
   (table) => [
     // The owner's items of one kind, newest first: "My highlights".
     index("item_owner_kind_created_idx").on(table.ownerId, table.kind, table.createdAt.desc()),
+    index("item_search_idx").using("gin", table.search),
     check("item_highlight_has_color", sql`${table.kind} <> 'highlight' or ${table.color} is not null`),
     // A draft is private, and what is not private has the date it was
     // published: the public site can trust either column.
@@ -309,4 +318,66 @@ export const itemTag = pgTable(
     // The items with a tag.
     index("item_tag_tag_idx").on(table.tagId),
   ],
+);
+
+// One verse window of a translation as a vector, for meaning search and
+// related passages. A window is a few verses of one chapter (see
+// src/lib/embeddings/windows.ts); `verse_start` and `verse_end` are the
+// verses it covers, so a match maps back to a passage. Computed on each
+// install (`pnpm embed:bible`), never committed or mirrored.
+export const passageEmbedding = pgTable(
+  "passage_embedding",
+  {
+    // Which model made the vector: vectors of two models cannot be compared.
+    model: text().notNull(),
+    translationId: text("translation_id")
+      .notNull()
+      .references(() => translation.id, { onDelete: "cascade" }),
+    verseStart: integer("verse_start").notNull(),
+    verseEnd: integer("verse_end").notNull(),
+    // Of the text embedded: a window whose verses changed is embedded again.
+    textHash: text("text_hash").notNull(),
+    embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.model, table.translationId, table.verseStart, table.verseEnd] }),
+    check("passage_embedding_range", sql`${table.verseStart} <= ${table.verseEnd}`),
+    index("passage_embedding_vector_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+  ],
+);
+
+// A reflection or a note as a vector (a highlight has none). One owner's items
+// are few enough to compare one by one, so there is no vector index.
+export const itemEmbedding = pgTable(
+  "item_embedding",
+  {
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => item.id, { onDelete: "cascade" }),
+    model: text().notNull(),
+    textHash: text("text_hash").notNull(),
+    embedding: vector({ dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.itemId, table.model] })],
+);
+
+// One row, id 1: the run that embeds the Bible and the items, so that the
+// settings page can show how it is going, and two runs (the app's, a
+// script's) cannot work at once. See src/lib/embeddings/job.ts.
+export const embeddingJob = pgTable(
+  "embedding_job",
+  {
+    id: integer().primaryKey().default(1),
+    status: bootStepStatus().notNull(),
+    model: text().notNull(),
+    done: integer().notNull().default(0),
+    total: integer().notNull().default(0),
+    // Why it failed and how to go on; shown to the owner.
+    message: text(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    // Touched while it runs, so a run whose process died can be told from one still working.
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+  },
+  (table) => [check("embedding_job_single_row", sql`${table.id} = 1`)],
 );

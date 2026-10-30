@@ -6,18 +6,22 @@ import { ReaderShell } from "@/components/reader/reader-shell";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SearchResults } from "@/components/search/search-results";
 import { getDb } from "@/db/client";
+import { loadAiProvider } from "@/lib/ai/load";
 import { listTranslations } from "@/lib/bible/passage";
 import { formatReference } from "@/lib/bible/reference";
 import { MAX_QUERY_LENGTH, searchVerses } from "@/lib/bible/search";
+import { embeddedTranslations } from "@/lib/embeddings/passages";
 import { readerPath } from "@/lib/reader-url";
 import {
   SEARCH_PAGE_SIZE,
   interpretQuery,
   parsePage,
   parseScope,
+  parseSearchMode,
   readerTranslations,
   scopeName,
   scopeRanges,
+  searchModeParam,
   searchPath,
   searchTranslationParam,
   selectSearchTranslations,
@@ -33,6 +37,7 @@ const typed = (value: string | string[] | undefined) =>
   (first(value) ?? "").trim().slice(0, MAX_QUERY_LENGTH);
 
 const EXAMPLES = ["living water", "“good shepherd”", "grace -law", "Psalm 23"];
+const MEANING_EXAMPLE = "verses about anxiety";
 
 const muted = "text-stone-600 dark:text-stone-400";
 const link =
@@ -44,8 +49,9 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 // Where the one box submits. A reference goes straight to the reader;
-// anything else is a keyword search of the local translations, narrowed by
-// the `t`, `in` and `page` parameters. See src/lib/search-url.ts for the URLs.
+// anything else searches the local translations, narrowed by the `t`, `in`
+// and `page` parameters, by keyword and, where the install has embeddings, by
+// meaning. See src/lib/search-url.ts for the URLs.
 export default async function SearchPage({ searchParams }: Props) {
   const params = await searchParams;
   const q = typed(params.q);
@@ -67,22 +73,33 @@ export default async function SearchPage({ searchParams }: Props) {
   const scope = parseScope(first(params.in));
   const page = parsePage(first(params.page));
 
+  const provider = await loadAiProvider();
+  const meaning = (await embeddedTranslations(db, provider.embeddingModel, selected)).length > 0;
+  const mode = parseSearchMode(first(params.mode), meaning);
+  const modeParam = searchModeParam(mode, meaning);
+
   if (intent.kind !== "keyword") {
     return (
       <ReaderShell
-        form={{ value: q, t, error: intent.kind === "bad-reference" ? intent.message : undefined }}
+        form={{
+          value: q,
+          t,
+          mode: modeParam,
+          error: intent.kind === "bad-reference" ? intent.message : undefined,
+        }}
       >
         <div className="mt-10">
           <h1 className="font-serif text-3xl tracking-tight">Search the Bible</h1>
           <p className={`mt-3 ${muted}`}>
             Type words to find the verses that have them, or a reference to open the passage.
             Put a phrase in quotation marks, and a minus sign before a word to leave it out.
+            {meaning && " Or describe what you are looking for, in your own words."}
           </p>
           <ul className="mt-3 flex flex-wrap gap-2">
-            {EXAMPLES.map((example) => (
+            {[...EXAMPLES, ...(meaning ? [MEANING_EXAMPLE] : [])].map((example) => (
               <li key={example}>
                 <Link
-                  href={searchPath({ q: example, t })}
+                  href={searchPath({ q: example, t, mode: modeParam })}
                   className="inline-flex h-9 items-center rounded-md border border-stone-300 px-3 text-sm hover:bg-stone-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-stone-500 dark:border-stone-700 dark:hover:bg-stone-900"
                 >
                   {example}
@@ -101,10 +118,12 @@ export default async function SearchPage({ searchParams }: Props) {
     ranges: scopeRanges(scope),
     limit: SEARCH_PAGE_SIZE,
     offset: (page - 1) * SEARCH_PAGE_SIZE,
+    mode,
+    provider,
   });
   const pages = Math.ceil(results.total / SEARCH_PAGE_SIZE);
   // A page past the end, as an old link may be: show the last one.
-  if (results.total > 0 && page > pages) redirect(searchPath({ q, t, scope, page: pages }));
+  if (results.total > 0 && page > pages) redirect(searchPath({ q, t, scope, mode: modeParam, page: pages }));
 
   const where = [
     scope && scopeName(scope),
@@ -115,10 +134,12 @@ export default async function SearchPage({ searchParams }: Props) {
     .filter(Boolean)
     .join(", ");
   const firstHit = (page - 1) * SEARCH_PAGE_SIZE + 1;
-  const count = `${results.total.toLocaleString("en")} ${results.total === 1 ? "verse" : "verses"}`;
+  // Keyword search finds verses; by meaning, a hit may be several.
+  const noun = results.mode ? ["passage", "passages"] : ["verse", "verses"];
+  const count = `${results.total.toLocaleString("en")} ${noun[results.total === 1 ? 0 : 1]}`;
 
   return (
-    <ReaderShell form={{ value: q, t }}>
+    <ReaderShell form={{ value: q, t, mode: modeParam }}>
       <div className="mt-10">
         <h1 className="font-serif text-3xl tracking-tight">
           Search: <span className="break-words">{q}</span>
@@ -146,6 +167,8 @@ export default async function SearchPage({ searchParams }: Props) {
                 selected={selected}
                 defaultId={defaultId}
                 scope={scope}
+                mode={mode}
+                meaning={meaning}
               />
             </div>
 
@@ -153,25 +176,36 @@ export default async function SearchPage({ searchParams }: Props) {
               {!results.searchable
                 ? "Every word in that search is too common to look for on its own. Add a more distinctive word."
                 : results.total === 0
-                  ? `No verses match in ${where}.`
+                  ? `No ${noun[1]} match in ${where}.`
                   : pages > 1
                     ? `${count} in ${where}. Showing ${firstHit}–${firstHit + results.hits.length - 1}.`
                     : `${count} in ${where}.`}
+              {results.keywordTotal !== undefined && (
+                <>
+                  {" "}
+                  The best of {results.keywordTotal.toLocaleString("en")} verses with these words.{" "}
+                  <Link href={searchPath({ q, t, scope, mode: "keyword" })} className={link}>
+                    See them all
+                  </Link>
+                </>
+              )}
             </p>
 
             {results.searchable && results.total === 0 && (
               <ul className={`mt-3 list-disc space-y-1 pl-5 text-sm ${muted}`}>
-                <li>Every word has to be in the verse; try fewer words, or check the spelling.</li>
+                {mode !== "meaning" && (
+                  <li>Every word has to be in the verse; try fewer words, or check the spelling.</li>
+                )}
                 {scope && (
                   <li>
-                    <Link href={searchPath({ q, t })} className={link}>
+                    <Link href={searchPath({ q, t, mode: modeParam })} className={link}>
                       Search the whole Bible
                     </Link>
                   </li>
                 )}
                 {selected.length < ids.length && (
                   <li>
-                    <Link href={searchPath({ q, t: "all", scope })} className={link}>
+                    <Link href={searchPath({ q, t: "all", scope, mode: modeParam })} className={link}>
                       Search all translations
                     </Link>
                   </li>
@@ -196,7 +230,7 @@ export default async function SearchPage({ searchParams }: Props) {
               >
                 {page > 1 ? (
                   <Link
-                    href={searchPath({ q, t, scope, page: page - 1 })}
+                    href={searchPath({ q, t, scope, mode: modeParam, page: page - 1 })}
                     rel="prev"
                     className={link}
                   >
@@ -210,7 +244,7 @@ export default async function SearchPage({ searchParams }: Props) {
                 </span>
                 {page < pages ? (
                   <Link
-                    href={searchPath({ q, t, scope, page: page + 1 })}
+                    href={searchPath({ q, t, scope, mode: modeParam, page: page + 1 })}
                     rel="next"
                     className={link}
                   >

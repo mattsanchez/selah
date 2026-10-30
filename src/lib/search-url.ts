@@ -1,6 +1,7 @@
 import { bookKey, findBook } from "@/lib/bible/book-names";
 import { BOOKS, type Book } from "@/lib/bible/books";
 import { parseReference } from "@/lib/bible/reference";
+import type { SearchMode } from "@/lib/bible/search";
 import { bookRange, parseVerseId, type VerseRange } from "@/lib/bible/verse-id";
 
 // The search page's URLs, and how it reads what is typed in the one box the
@@ -13,6 +14,9 @@ import { bookRange, parseVerseId, type VerseRange } from "@/lib/bible/verse-id";
 //   /search?q=living+water&in=john       ... in one book
 //   /search?q=living+water&in=nt         ... in a testament ("ot" or "nt")
 //   /search?q=shepherd&page=2            the second page of results
+//   /search?q=anxiety&mode=meaning       by meaning alone, or mode=keyword; by
+//                                        both when absent, where meaning search
+//                                        is available, and by keyword where not
 //   /search?q=jn+4.10                    a reference: redirects to the reader
 //
 // `t` means what it means in the reader (src/lib/reader-url.ts), so the
@@ -111,20 +115,34 @@ export function parsePage(param: string | undefined): number {
   return Math.max(page, 1);
 }
 
+// What a `mode` parameter asks for, on a search where meaning is `available`
+// (or not, when every mode is the keyword search).
+export function parseSearchMode(param: string | undefined, available: boolean): SearchMode {
+  if (!available) return "keyword";
+  return param === "keyword" || param === "meaning" ? param : "both";
+}
+
+// The `mode` parameter for a mode: none for the default.
+export const searchModeParam = (mode: SearchMode, available: boolean): SearchMode | undefined =>
+  available && mode !== "both" ? mode : undefined;
+
 export type SearchLocation = {
   q: string;
   // As searchTranslationParam() returns it.
   t?: string;
   scope?: SearchScope;
   page?: number;
+  // As searchModeParam() returns it.
+  mode?: SearchMode;
 };
 
-export function searchPath({ q, t, scope, page = 1 }: SearchLocation): string {
+export function searchPath({ q, t, scope, page = 1, mode }: SearchLocation): string {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (t) params.set("t", t);
   const within = scopeParam(scope);
   if (within) params.set("in", within);
+  if (mode) params.set("mode", mode);
   if (page > 1) params.set("page", String(page));
   // "," reads better left as it is, as in the reader's URLs.
   const query = params.toString().replace(/%2C/g, ",");

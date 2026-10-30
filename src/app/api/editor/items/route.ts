@@ -1,13 +1,15 @@
 import type { NextRequest } from "next/server";
 
 import { getDb } from "@/db/client";
+import { loadAiProvider } from "@/lib/ai/load";
 import { listTranslations } from "@/lib/bible/passage";
 import { normalizeRanges } from "@/lib/bible/ranges";
 import { formatReference, parseReference } from "@/lib/bible/reference";
 import type { ContentData } from "@/lib/editor/types";
 import { markdownExcerpt } from "@/lib/items/markdown";
 import { highlightColor } from "@/lib/items/palette";
-import { listItems, listTags } from "@/lib/items/queries";
+import { listTags } from "@/lib/items/queries";
+import { itemsHaveVectors, searchItems } from "@/lib/items/search";
 import { tagSlug } from "@/lib/items/tags";
 
 import { ownerOr401 } from "../owner";
@@ -18,7 +20,8 @@ const PAGE = 20;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 // The owner's highlights, reflections and notes for the sidebar's "My
-// content", newest first:
+// content": searchItems(), the same search as /items. Newest first until
+// there are words to rank by; `exact=1` leaves meaning out.
 //
 //   /api/editor/items?q=vine&tag=abiding&passage=john+15&offset=20&except=<id>
 export async function GET(request: NextRequest) {
@@ -33,24 +36,32 @@ export async function GET(request: NextRequest) {
   }
   const except = params.get("except") ?? "";
   const db = getDb();
-  const [translations, tags, results] = await Promise.all([
+  const provider = await loadAiProvider();
+  const [translations, tags, meaning, results] = await Promise.all([
     listTranslations(db),
     listTags(db, owner.id),
-    listItems(
+    itemsHaveVectors(db, owner.id, provider.embeddingModel),
+    searchItems(
       db,
+      owner.id,
       {
-        ownerId: owner.id,
-        text: params.get("q")?.slice(0, 200),
+        text: params.get("q") ?? undefined,
         tag: params.get("tag") ? tagSlug(params.get("tag")!) : undefined,
         ranges: parsed?.ok ? normalizeRanges(parsed.ranges) : undefined,
         except: UUID.test(except) ? except : undefined,
+        meaning: params.get("exact") !== "1",
       },
-      { limit: PAGE, offset: Math.max(0, Math.min(Number(params.get("offset")) || 0, 100_000)) },
+      {
+        limit: PAGE,
+        offset: Math.max(0, Math.min(Number(params.get("offset")) || 0, 100_000)),
+        provider,
+      },
     ),
   ]);
 
   const data: ContentData = {
     total: results.total,
+    meaning,
     tags: tags.map(({ slug, name }) => ({ slug, name })),
     items: results.items.map((item) => {
       const readIn = item.passages.find((range) => range.translationId)?.translationId;

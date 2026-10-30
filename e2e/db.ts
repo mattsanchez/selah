@@ -38,6 +38,19 @@ export function clearTestOwnerItems(): Promise<void> {
   });
 }
 
+// Deletes the test owner's items with a tag that starts with this: what a
+// retried test left behind.
+export function deleteItemsTagged(prefix: string): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`
+      delete from item where id in (
+        select item_tag.item_id from item_tag join tag on tag.id = item_tag.tag_id
+        where tag.slug like ${`${prefix}%`}
+      )`;
+    await sql`delete from tag where slug like ${`${prefix}%`}`;
+  });
+}
+
 export type StoredItem = {
   kind: string;
   title: string | null;

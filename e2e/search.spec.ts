@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // Journey 4, keyword half: search the Bible by keyword, filter by book or
-// testament, and open a result in the reader. Meaning search is M10.
+// testament, and open a result in the reader. The fixture has embeddings, so
+// these say mode=keyword; e2e/meaning-search.spec.ts has the meaning half, and
+// e2e/fresh-install/install.spec.ts an install with AI off.
 
 const box = (page: Page) => page.getByRole("textbox", { name: "Passage or search" });
 const results = (page: Page) => page.locator("[data-result]");
@@ -11,7 +13,7 @@ const scope = (page: Page) => filters(page).getByRole("combobox", { name: "Searc
 const references = (page: Page) => results(page).getByRole("heading").getByRole("link");
 
 async function search(page: Page, query: string) {
-  await page.goto("/search");
+  await page.goto("/search?mode=keyword");
   await box(page).fill(query);
   await box(page).press("Enter");
 }
@@ -27,6 +29,8 @@ test("search for living water, narrow it, and open a result in the reader", asyn
   await expect(page).toHaveURL("/search?q=living+water");
   await expect(page).toHaveTitle("living water · Search · Selah");
   await expect(box(page)).toHaveValue("living water");
+  await filters(page).getByRole("radio", { name: "Keyword" }).check();
+  await expect(page).toHaveURL("/search?q=living+water&mode=keyword");
   await expect(status(page)).toHaveText("4 verses in the BSB.");
   await expect(references(page)).toHaveText([
     "John 4:10, Berean Standard Bible",
@@ -49,7 +53,7 @@ test("search for living water, narrow it, and open a result in the reader", asyn
 
   // Every translation: each hit says where it is from, and each is credited.
   await filters(page).getByRole("button", { name: "Search all" }).click();
-  await expect(page).toHaveURL("/search?q=living+water&t=all");
+  await expect(page).toHaveURL("/search?q=living+water&t=all&mode=keyword");
   await expect(status(page)).toHaveText("10 verses in all translations.");
   await expect(results(page)).toHaveCount(10);
   await expect(page.locator("[data-result='43007038'][data-translation='kjv']")).toContainText(
@@ -61,20 +65,20 @@ test("search for living water, narrow it, and open a result in the reader", asyn
 
   // By testament, then by book.
   await scope(page).selectOption({ label: "Old Testament" });
-  await expect(page).toHaveURL("/search?q=living+water&t=all&in=ot");
+  await expect(page).toHaveURL("/search?q=living+water&t=all&in=ot&mode=keyword");
   await expect(status(page)).toHaveText("No verses match in the Old Testament, all translations.");
   await expect(results(page)).toHaveCount(0);
 
   await scope(page).selectOption({ label: "New Testament" });
-  await expect(page).toHaveURL("/search?q=living+water&t=all&in=nt");
+  await expect(page).toHaveURL("/search?q=living+water&t=all&in=nt&mode=keyword");
   await expect(results(page)).toHaveCount(10);
 
   await scope(page).selectOption({ label: "Romans" });
-  await expect(page).toHaveURL("/search?q=living+water&t=all&in=romans");
+  await expect(page).toHaveURL("/search?q=living+water&t=all&in=romans&mode=keyword");
   await expect(status(page)).toHaveText("No verses match in Romans, all translations.");
 
   await scope(page).selectOption({ label: "John" });
-  await expect(page).toHaveURL("/search?q=living+water&t=all&in=john");
+  await expect(page).toHaveURL("/search?q=living+water&t=all&in=john&mode=keyword");
   await expect(status(page)).toHaveText("10 verses in John, all translations.");
 
   // A result opens that verse in the reader, in the translation it was found in.
@@ -113,7 +117,7 @@ test("a reference typed in the search box goes straight to the reader", async ({
   await expect(page).toHaveURL("/read/john-3.16");
   await page.goto("/read?q=living+water");
   await expect(page).toHaveURL("/search?q=living+water");
-  await expect(results(page)).toHaveCount(4);
+  await expect(results(page).first()).toBeVisible();
 });
 
 test("filters narrow a search by testament, book and translation", async ({ page }) => {
@@ -132,10 +136,10 @@ test("filters narrow a search by testament, book and translation", async ({ page
 
   // Another translation instead of the default.
   await filters(page).getByRole("checkbox", { name: "King James Version" }).check();
-  await expect(page).toHaveURL("/search?q=shepherd&t=bsb,kjv&in=john");
+  await expect(page).toHaveURL("/search?q=shepherd&t=bsb,kjv&in=john&mode=keyword");
   await expect(status(page)).toHaveText("12 verses in John, the BSB, KJV.");
   await filters(page).getByRole("checkbox", { name: "Berean Standard Bible" }).uncheck();
-  await expect(page).toHaveURL("/search?q=shepherd&t=kjv&in=john");
+  await expect(page).toHaveURL("/search?q=shepherd&t=kjv&in=john&mode=keyword");
   await expect(status(page)).toHaveText("5 verses in John, the KJV.");
   await expect(results(page)).toHaveCount(5);
   await expect(results(page).first()).toHaveAttribute("data-translation", "kjv");
@@ -161,7 +165,7 @@ test("phrases, word forms, exclusions and psalm titles", async ({ page }) => {
   await expect(results(page).first().locator("mark")).toHaveText([/^words?$/i, "God"]);
 
   // Word forms: "believing" finds "believe", "believes" and "believed".
-  await page.goto("/search?q=believing&in=john");
+  await page.goto("/search?q=believing&in=john&mode=keyword");
   const marks = (await results(page).locator("mark").allTextContents()).map((mark) =>
     mark.toLowerCase(),
   );
@@ -169,19 +173,19 @@ test("phrases, word forms, exclusions and psalm titles", async ({ page }) => {
   expect(marks).toContain("believes");
 
   // A word left out.
-  await page.goto("/search?q=living+water+-well");
+  await page.goto("/search?q=living+water+-well&mode=keyword");
   await expect(status(page)).toHaveText("3 verses in the BSB.");
   await expect(page.locator("[data-result='43004011']")).toHaveCount(0);
 
   // Words of a psalm's title find the psalm.
-  await page.goto("/search?q=maskil+korah");
+  await page.goto("/search?q=maskil+korah&mode=keyword");
   await expect(references(page).first()).toContainText("Psalm 42:1");
   await expect(
     results(page).first().locator("[data-heading='superscription'] mark"),
   ).toHaveText(["Maskil", "Korah"]);
 
   // Poetry is shown on one line.
-  await page.goto("/search?q=“I+shall+not+want”");
+  await page.goto("/search?q=“I+shall+not+want”&mode=keyword");
   await expect(results(page).first()).toContainText("The LORD is my shepherd; I shall not want.");
 });
 
@@ -195,20 +199,20 @@ test("long result lists are paged", async ({ page }) => {
   const firstOnPageOne = await references(page).first().textContent();
 
   await pages.getByRole("link", { name: "Next" }).click();
-  await expect(page).toHaveURL("/search?q=love&page=2");
+  await expect(page).toHaveURL("/search?q=love&mode=keyword&page=2");
   await expect(status(page)).toHaveText("223 verses in the BSB. Showing 21–40.");
   await expect(references(page).first()).not.toHaveText(firstOnPageOne!);
 
-  await page.goto("/search?q=love&page=12");
+  await page.goto("/search?q=love&mode=keyword&page=12");
   await expect(status(page)).toHaveText("223 verses in the BSB. Showing 221–223.");
   await expect(results(page)).toHaveCount(3);
   await expect(pages.getByRole("link", { name: "Next" })).toHaveCount(0);
 
   // A page past the end goes to the last one; a filter starts again at the first.
-  await page.goto("/search?q=love&page=99");
-  await expect(page).toHaveURL("/search?q=love&page=12");
+  await page.goto("/search?q=love&mode=keyword&page=99");
+  await expect(page).toHaveURL("/search?q=love&mode=keyword&page=12");
   await scope(page).selectOption({ label: "Romans" });
-  await expect(page).toHaveURL("/search?q=love&in=romans");
+  await expect(page).toHaveURL("/search?q=love&in=romans&mode=keyword");
   await expect(status(page)).toHaveText("18 verses in Romans, the BSB.");
 });
 
@@ -217,7 +221,7 @@ test("searches with nothing to find say so, and odd input is harmless", async ({
   await expect(status(page)).toHaveText("No verses match in the BSB.");
   await expect(results(page)).toHaveCount(0);
   await page.getByRole("link", { name: "Search all translations" }).click();
-  await expect(page).toHaveURL("/search?q=xylophone&t=all");
+  await expect(page).toHaveURL("/search?q=xylophone&t=all&mode=keyword");
 
   // Only words too common to be indexed.
   await search(page, "the and of");
@@ -230,7 +234,7 @@ test("searches with nothing to find say so, and odd input is harmless", async ({
     await expect(status(page)).toBeVisible();
     await expect(box(page)).toHaveValue(query);
   }
-  await page.goto("/search?q=living+water");
+  await page.goto("/search?q=living+water&mode=keyword");
   await expect(results(page)).toHaveCount(4);
 
   // An empty box.

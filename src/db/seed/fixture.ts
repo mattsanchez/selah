@@ -1,5 +1,6 @@
 import type { Db } from "../client";
 import { bibleFixtureStep } from "./bible";
+import { embeddingsFixtureStep } from "./embeddings";
 import { studyFixtureStep } from "./study";
 import { testOwnerStep } from "./owner";
 import { TEST_OWNER_FLAG } from "./test-owner";
@@ -12,7 +13,7 @@ export type SeedStep = {
 
 // The fixture the Playwright journeys run against. Append steps here in the
 // order they must run.
-export const fixtureSteps: SeedStep[] = [bibleFixtureStep, studyFixtureStep];
+export const fixtureSteps: SeedStep[] = [bibleFixtureStep, studyFixtureStep, embeddingsFixtureStep];
 
 // The journeys also need a signed-in owner. An account with a published
 // password must never reach a real install, so its step runs only when asked

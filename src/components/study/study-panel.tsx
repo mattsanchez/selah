@@ -2,9 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { getDb } from "@/db/client";
+import { loadAiProvider } from "@/lib/ai/load";
 import { getPassages, type Translation } from "@/lib/bible/passage";
 import { formatReference } from "@/lib/bible/reference";
 import type { VerseRange } from "@/lib/bible/verse-id";
+import { relatedPassages } from "@/lib/embeddings/related";
 import { readerPath } from "@/lib/reader-url";
 import { renderStudyHtml } from "@/lib/study/html";
 import { getCommentary, getCrossReferences, type SourceCommentary } from "@/lib/study/queries";
@@ -14,7 +16,7 @@ import type { CommentaryRecord } from "@/lib/study/types";
 import { STUDY_PANEL_ID } from "./verse-select";
 
 // The study panel: what there is to read beside one verse. Cross references
-// ranked by votes, the verse's footnotes, public-domain commentary and study
+// ranked by votes, passages related by meaning, the verse's footnotes, public-domain commentary and study
 // notes, each with its source's attribution.
 //
 // It is the panel of the selection: it is titled with all the verses
@@ -28,6 +30,8 @@ import { STUDY_PANEL_ID } from "./verse-select";
 
 // How many cross references show before "Show more".
 const CROSS_REFERENCES_SHOWN = 8;
+// How many related passages show.
+const RELATED_SHOWN = 5;
 // About how many characters of an entry show before "Read in full".
 const ENTRY_PREVIEW_CHARS = 600;
 const PREVIEW_CHARS = 240;
@@ -129,9 +133,11 @@ export async function StudyPanel({
 }: StudyPanelProps) {
   const db = getDb();
   const verse = { start: verseId, end: verseId };
-  const [crossReferences, commentary] = await Promise.all([
+  const provider = await loadAiProvider();
+  const [crossReferences, commentary, related] = await Promise.all([
     getCrossReferences(db, verse),
     getCommentary(db, verse),
+    relatedPassages(db, verse, { translationId: translation.id, limit: RELATED_SHOWN, provider }),
   ]);
   const targets = crossReferences.map((row) => ({ start: row.toStart, end: row.toEnd }));
   const texts = (await getPassages(db, [translation.id], targets)).get(translation.id) ?? [];
@@ -300,6 +306,31 @@ export async function StudyPanel({
           </>
         )}
       </Section>
+
+      {/* Without vectors the list would only repeat the cross references above. */}
+      {related.meaning && related.passages.length > 0 && (
+        <Section name="related" title="Related">
+          <ol className="space-y-3">
+            {related.passages.map((passage) => (
+              <li key={passage.start} data-related={passage.reference} data-sources={passage.sources.join(" ")}>
+                <Link
+                  href={passageHref(passage)}
+                  className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+                >
+                  {passage.reference}
+                </Link>
+                <p className="mt-0.5 font-serif text-[0.95rem] leading-6 text-stone-700 dark:text-stone-300">
+                  {passage.text}
+                </p>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-3 text-xs leading-5 text-stone-500 dark:text-stone-400">
+            Close in meaning, with any cross references to the same verses counted in. Quoted from the{" "}
+            {translation.abbrev}.
+          </p>
+        </Section>
+      )}
 
       <Section name="footnotes" title="Footnotes">
         {footnotes.every((group) => group.notes.length === 0) ? (

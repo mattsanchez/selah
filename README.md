@@ -6,7 +6,7 @@ Look up or search a passage, compare translations, study it with cross reference
 Inspired by Posterous, shaped like Ghost, built for Bible study.
 
 Status: pre-MVP. The product spec and milestones are in [docs/spec.md](docs/spec.md).
-You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, reflections and notes with tags and visibility, and the public site with its feeds; AI comes next.
+You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, reflections and notes with tags and visibility, the public site with its feeds, search by meaning with a Voyage AI key, and export of everything you have made; Ask comes next.
 
 ## Self-hosting
 
@@ -85,7 +85,7 @@ The setup screen and the Settings page say where each step's files came from ("D
 
 `SELAH_DATA_MIRROR` changes this (see [Configuration](#configuration)): `off` downloads from the publishers only, and a URL names a mirror of your own, which must serve each file under the name it has in the data release.
 
-After first boot Selah needs no outbound access (until you turn on AI or email).
+After first boot Selah needs no outbound access (until you turn on AI or email; meaning search reaches `api.voyageai.com`).
 No Bible text, cross references or commentary is in the image, and the repository holds only the small test fixture; [DATA-LICENSES.md](DATA-LICENSES.md) lists each source and its license.
 
 If a download fails, the others still load, and the setup screen (and later the Settings page) says which source failed and why.
@@ -128,7 +128,7 @@ Ten wrong passwords for an email within fifteen minutes lock password sign-in fo
 When `SMTP_URL`, `EMAIL_FROM` and `SELAH_URL` are all set, the sign-in page also offers to email a sign-in link; the link works once, for fifteen minutes, and is only ever sent to the owner's address.
 Sessions are encrypted cookies that last 30 days and survive restarts and upgrades.
 
-**AI keys.** The AI features (later versions) are off until there is a key; everything else works without one.
+**AI keys.** AI is off until there is a key; everything else works without one. A Voyage AI key turns on [meaning search](#meaning-search); the Anthropic key is for a later version.
 A key can come from the environment (`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`), which takes precedence, or be saved at setup or in Settings.
 A saved key is encrypted (AES-256-GCM) with a key derived from the install's secret before it goes into the database, so a database dump alone does not reveal it.
 Once saved it is never sent back to the browser, not even masked: Settings says only that a key is saved, and lets you replace or remove it.
@@ -208,6 +208,7 @@ To skip setup, seed the test owner as well: `SELAH_SEED_TEST_OWNER=1 pnpm db:see
 | `pnpm build:boot` | Bundle the Docker image's entry point, `scripts/boot.ts`, to `dist/boot.mjs` |
 | `pnpm fixture:bible` | Rebuild the committed Bible fixture from the pinned sources |
 | `pnpm import:study` | Download and load the cross references, commentaries and study notes; see [Study data](#study-data) |
+| `pnpm embed:bible` | Embed the verse windows of the BSB and the WEB, and any items waiting, with the install's provider; `pnpm embed:bible kjv` names the translations. Stops and resumes safely; see [meaning search](#meaning-search) |
 | `pnpm fixture:study` | Rebuild the committed study fixture from the pinned sources |
 | `pnpm data:release` | Stage the [data release](#data-releases) from the download cache and verify it; with `--publish`, publish it |
 | `pnpm data:check` | Compare every pinned source with what its publisher serves today and print what changed; see [checking upstream for changes](#checking-upstream-for-changes) |
@@ -221,8 +222,9 @@ To change something, copy `.env.example` to `.env`.
 The secret and the setup token are generated on first use into `.data/` (ignored by git); set `SELAH_DATA_DIR` to keep them elsewhere.
 `E2E_PORT` moves the end-to-end servers off ports 3000 and 3001.
 
-AI and embeddings calls go through one provider module, `src/lib/ai`, selected by `AI_PROVIDER`.
+AI and embeddings calls go through one provider module, `src/lib/ai`. `AI_PROVIDER` decides when it is set; unset, a Voyage key turns on the real embeddings.
 Tests and `pnpm e2e:serve` use the `stub` provider, which is deterministic and never touches the network.
+Its vectors are hashed bags of words, **not semantic**: two texts are close only as far as they share words, so "fear" and "afraid" are strangers. They prove the plumbing, not the quality of the results.
 
 ## Bible data
 
@@ -408,7 +410,7 @@ Public items are on the [public site](#public-site); unlisted ones only at their
 - **Share a highlight**: "Share", beside "Edit" on its card, makes it public; "Unshare" and "Make unlisted" are there afterwards.
 - **Reflect**: select verses in the reader and choose "Reflect". A draft opens in the editor with the passage in it.
 - **Note**: "Note" in the reader opens the editor's note form on the selected verses, and comes back to them once posted; "Quick note" on `/items` opens one on no passage. A note's "Post" makes it public unless you choose unlisted; until then it is a private draft.
-- **My items** (`/items`): every item of every kind, drafts included, as the feed will show it, with its visibility; narrowed by kind (`?kind=note`) or tag (`?tag=grace`).
+- **My items** (`/items`): every item of every kind, drafts included, as the feed will show it, with its visibility. Search it by words (title, text and note), passage (an item on any verse of the passage counts, so `Psalm 61:2-4` finds a highlight on 61:1-2), tag, kind, color and visibility, together or apart. With embeddings, a search also finds posts close in meaning; "These words only" turns that off. "My content" in the editor's study sidebar is the same search (`searchItems` in `src/lib/items/search.ts`).
 
 ![The editor, with the study sidebar open](docs/screenshots/post-editor.png)
 
@@ -485,7 +487,7 @@ For anyone building on them:
 - **Who is signed in**: `src/lib/auth/owner.ts`. `getOwner()` returns `{ id, email }` or `null`; `requireOwner(next?)` returns the owner or redirects to `/sign-in` (and back to `next` afterwards). Call `requireOwner()` at the top of every owner-only page and of every server action that changes something; a page's check does not protect the actions it renders. In a route handler, call `getOwner()` and answer 401 yourself. Nothing else should read the session; the Auth.js configuration is `src/auth.ts`.
 - **Until there is an owner**, `src/proxy.ts` sends every page to `/setup`. That is all it does; it is not an access check.
 - **Site settings**: `getSite()` in `src/lib/site.ts` returns the one `site` row (`title`, `handle`, `defaultTranslationId`, `settings`), read once per request. `settings` is typed by `SiteSettings` in `src/lib/site-settings.ts`; add new settings there.
-- **AI keys**: `getAiKeys()` in `src/lib/ai/keys.ts` returns `{ anthropic?, voyage? }`, from the environment or the encrypted settings. Server-only: never pass a key to a client component or return it from a server action.
+- **AI keys**: `getAiKeys()` in `src/lib/ai/keys.ts` returns `{ anthropic?, voyage? }`, from the environment or the encrypted settings. Server-only: never pass a key to a client component or return it from a server action. Application code rarely needs them: `loadAiProvider()` in `src/lib/ai/load.ts` gives the install's provider.
 - **Email**: `getMailer()` in `src/lib/email` (undefined when no SMTP is configured). With `EMAIL_TRANSPORT=stub` it writes each message to `<data dir>/outbox/` and sends nothing; tests use that.
 - **First boot**: the ordered list is `firstBootSteps` in `scripts/first-boot-steps.ts`. Append new imports there, one `importStep({ id, title, version, what, load })` each: `version` is what the step loads (its pinned checksums; a done step runs again only when it changes) and `load` must be idempotent. Steps are independent: a failed one is recorded with a message and the rest still run. Downloads go through `download(urls)` in `src/lib/bible/import/download.ts`, which tries a list of URLs in order, so a mirror is a second URL. Progress is kept in the `boot_step` table; the runner is `src/lib/first-boot/runner.ts`.
 - **Tests**: `pnpm e2e` runs two servers from one build. The fixture server has the seeded fixture and a test owner; a spec that needs the owner signed in says `test.use({ storageState: OWNER_STATE })` (from `e2e/owner.ts`), and is a signed-out visitor otherwise. Journey 1 runs against a second server and a database with no owner, recreated for each run (`e2e/fresh-install/`, `scripts/e2e-fresh-install.ts`). Tests on the fixture server run in parallel and share the site settings, so they must not change the title or the default translation.
@@ -506,6 +508,8 @@ All the words must be in the verse. `"quoted words"` must be together, `-word` l
 Section headings and psalm titles are searched with the verse they are printed over, so `maskil` finds the psalms titled that way.
 A word typed alone goes to the reader only when it is a book's full name (`John`, `Psalms`); abbreviations such as `is` or `judge` are searched for, with a link to the book, and a quoted `"john"` always is.
 
+With embeddings there is also [search by meaning](#meaning-search): a "Search by" choice of Keyword, Meaning or Both, which is the default (`mode=keyword` or `mode=meaning` in the URL). Without them the page is exactly the keyword search, and says nothing about it.
+
 The pieces:
 
 - `src/db/schema.ts`: `verse.search`, a generated `tsvector` column with a GIN index (migration `0003_verse_search`).
@@ -514,6 +518,68 @@ The pieces:
 - `src/app/search/page.tsx` and `src/components/search/`: the page, its filters and the result list.
 
 Limits: words too common to index ("the", "of") are ignored, and inside a quoted phrase such a word stands for any one word. Stemming is modern English, so in the KJV `love` does not find "loveth".
+
+## Meaning search
+
+With a Voyage AI key, Selah finds passages by what they are about ("verses about anxiety"), suggests related passages in the reader's study panel and the editor's sidebar, and finds your own posts by meaning. All of it is optional: with no key, search is keyword search, related passages are cross references, and nothing on any page mentions it.
+
+**Turning it on.** Add a key in Settings (or set `VOYAGE_API_KEY`), then press "Start" under "Meaning search". Progress shows there, and "Continue" picks up after a failure. With a key already there when Selah starts, the run starts by itself and resumes after a restart. From a terminal: `pnpm embed:bible` (with Docker, the app does this for you).
+
+**What it costs.** Vectors are computed on your install and are never committed or mirrored.
+
+| | BSB + WEB |
+| :--- | ---: |
+| Windows | 29,322 (14,656 + 14,666) |
+| Text | 14.6 million characters, about 4 million tokens |
+| One full run with `voyage-4` | About $0.25 at $0.06 per million tokens, and inside Voyage's 200 million free tokens |
+| Space in Postgres | About 390 MB (157 MB of vectors, 230 MB of index) |
+| Time | An estimate, not yet measured against Voyage: minutes, with a payment method on the account. Without one, expect lower limits; the run slows itself to match, and may stop and need "Continue" |
+
+A search costs one short query, and is free when it repeats one recently asked. At most 60 new searches a minute go to Voyage; past that a search is by keyword until the minute is up, so a crawler on the public `/search` cannot run up a bill.
+
+**How it works.**
+
+- **Windows** (`src/lib/embeddings/windows.ts`): four verses, starting every second verse, so each verse is in two windows and a thought across a window's edge is whole in the next. A window never leaves its chapter, so it never crosses a book. A chapter's last window stops at its end, and a chapter shorter than a window is one window. Line breaks are spaces. A window knows its first and last verse, so a match opens in the reader as a passage.
+- **Translations**: the BSB, the WEB, and the site's default translation when it is another one. `pnpm embed:bible kjv` adds any other. A translation without vectors is searched by keyword; related passages compare in another translation's vectors and quote the one being read.
+- **Model**: `voyage-4` at 1024 dimensions, pinned as `VOYAGE_EMBEDDING_MODEL` in `src/lib/ai/voyage.ts`. Every vector is stored with its model's name, and only vectors of the model in use are read, so changing the name means embedding again. A window whose text changes is embedded again; one that no longer exists is removed.
+- **Storage**: `passage_embedding` (pgvector, with an HNSW cosine index) and `item_embedding` (one owner's items are few enough to compare without an index). A filtered search uses pgvector's iterative scan, so a book or a testament still gets a full list.
+- **Fusion** (`src/lib/embeddings/fusion.ts`): "Both" fuses the 200 best keyword verses and the 100 nearest windows by reciprocal rank fusion, with k = 60. A verse inside a window counts for the window, which then shows with the words marked, so it is not listed twice; of windows that overlap, the best stands for them. A word in more verses than that shows the best of them, with a link to all of them under Keyword.
+- **Related** (`relatedPassages` in `src/lib/embeddings/related.ts`): the windows nearest to the average of the passage's own, leaving out the passage and the verses right around it, blended with its cross references the same way. Without vectors it is the cross references alone; the reader's panel then shows no "Related" section, since they are listed just above it.
+- **Your items**: reflections and notes with text are embedded a few seconds after you stop typing (a highlight is the Bible's words, and its note is found by keyword). Passage cards are left out. A save never waits for this and never fails because of it: with no key or with Voyage down, the post is found by its words, and the next save, or the next run, embeds it.
+- **When Voyage fails**: requests are paced, and back off and retry on a rate limit or a server error. A search that cannot be embedded is a keyword search. A run that fails says so in Settings, and what it finished is kept.
+
+**Not calibrated yet.** The similarity below which a passage counts as no match (`MIN_SIMILARITY` in `src/lib/ai/voyage.ts`) is a judgement, not a measurement. It decides where a list stops, not its order.
+
+## Export
+
+"Export everything" on `/items` and in Settings downloads a zip of all you have made (`/export`, owner only). It streams, so a long history needs no more memory than a short one.
+
+```text
+selah-export-2026-10-30.zip
+├── selah-export.json
+└── items/
+    ├── highlights/2026-10-13-psalm-61-1-2-3f9a2c1b7d4e.md
+    ├── notes/2026-10-14-the-commandments-summed-up-a81c02d4e5f6.md
+    └── reflections/2026-10-15-waiting-in-silence-c790edf191bc.md
+```
+
+**`selah-export.json`** is the record. Its format is versioned: fields may be added within a version, and any other change raises `version`.
+
+| Field | Meaning |
+| :--- | :--- |
+| `schema` | Always `"selah-export"` |
+| `version` | `1` |
+| `exportedAt` | When, in ISO 8601 |
+| `site` | `title`, `handle`, `defaultTranslation` |
+| `items[]` | Every item, oldest first |
+
+Each item has `id`, `kind` (`highlight`, `reflection` or `note`), `title`, `markdown`, `note`, `color`, `visibility`, `publishedAt`, `createdAt`, `updatedAt`, `tags` (`slug` and `name`), `passages` (`reference`, `verseStart`, `verseEnd`, `translation`) and `permalink` (a path on the site, `null` while private). `markdown` is exactly as stored, with passage cards as `[[Reference | T]]` lines. Verse ids are `BBCCCVVV`. The types are in `src/lib/export/format.ts`.
+
+**The Markdown files** are for reading anywhere. Each has YAML front matter (`id`, `kind`, `title`, `visibility`, dates, and `color`, `tags`, `passages` and `permalink` where it has them), then the body. A passage card is written out as a blockquote, with verse numbers, poetry's line breaks, and the reference and the translation's attribution on the last line. The `[[...]]` syntax is not in these files; it is in the JSON. A card whose reference could not be read stays as it was typed.
+
+No secrets are exported: of the site, only the three fields above, named one by one. API keys, password hashes, the owner's email and sessions are not in the file. The translations' own text appears only as your posts quote it.
+
+There is no import yet.
 
 ## License
 

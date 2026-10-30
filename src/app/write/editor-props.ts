@@ -2,10 +2,12 @@ import { cookies } from "next/headers";
 
 import type { PostEditorProps } from "@/components/editor/post-editor";
 import type { Db } from "@/db/client";
+import { loadAiProvider } from "@/lib/ai/load";
 import { listTranslations } from "@/lib/bible/passage";
 import { formatReference } from "@/lib/bible/reference";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import { loadPassage, translationInfo } from "@/lib/editor/passage-data";
+import { embeddedTranslations } from "@/lib/embeddings/passages";
 import { STUDY_COOKIE, passageKey, type PassageData } from "@/lib/editor/types";
 import { itemsPath } from "@/lib/items-url";
 import { parseDocument } from "@/lib/items/cards";
@@ -73,6 +75,7 @@ export async function editorProps(db: Db, { item, kind, anchor, back }: EditorPa
         }
       : undefined;
 
+  const { embeddingModel } = await loadAiProvider();
   const firstCard = parseDocument(markdown).find((segment) => segment.type === "card");
   const studyCookie = (await cookies()).get(STUDY_COOKIE)?.value;
   return {
@@ -83,6 +86,7 @@ export async function editorProps(db: Db, { item, kind, anchor, back }: EditorPa
     visibility: item?.visibility ?? "private",
     publishedAt: item?.publishedAt?.toISOString() ?? null,
     translations: translations.map(translationInfo),
+    meaningTranslations: await embeddedTranslations(db, embeddingModel, translations.map(({ id }) => id)),
     passages,
     anchor: noteAnchor,
     back: backLink(back, kind),

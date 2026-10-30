@@ -88,3 +88,22 @@ describe("SearchResults", () => {
     expect(html).not.toContain("Attribution of the KJV.");
   });
 });
+
+describe("a hit that is a passage", () => {
+  const passage: SearchHit = {
+    translationId: "bsb",
+    verseId: 43014001,
+    endVerseId: 43014004,
+    score: 1,
+    headings: [],
+    text: [{ text: "Do not let your hearts be troubled.", match: false }],
+  };
+
+  it("names the whole range, and opens the reader on it", () => {
+    const html = renderToStaticMarkup(
+      <SearchResults hits={[passage]} translations={[translation("bsb")]} defaultId="bsb" />,
+    );
+    expect(html).toContain("John 14:1-4");
+    expect(html).toContain('href="/read/john-14.1-4"');
+  });
+});

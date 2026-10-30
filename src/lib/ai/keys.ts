@@ -45,8 +45,7 @@ export function resolveAiKey(
 }
 
 // The keys to call the providers with; a provider without one is off.
-export async function getAiKeys(): Promise<Partial<Record<AiKeyName, string>>> {
-  const settings = (await getSite())?.settings;
+export function aiKeysFrom(settings: SiteSettings | undefined): Partial<Record<AiKeyName, string>> {
   const key = settingsKey();
   const keys: Partial<Record<AiKeyName, string>> = {};
   for (const name of AI_KEY_NAMES) {
@@ -54,6 +53,10 @@ export async function getAiKeys(): Promise<Partial<Record<AiKeyName, string>>> {
     if (value) keys[name] = value;
   }
   return keys;
+}
+
+export async function getAiKeys(): Promise<Partial<Record<AiKeyName, string>>> {
+  return aiKeysFrom((await getSite())?.settings);
 }
 
 export async function getAiKeySources(): Promise<Record<AiKeyName, AiKeySource>> {

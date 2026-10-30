@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 
 import { getDb } from "@/db/client";
-import { getAiProvider } from "@/lib/ai";
+import { loadAiProvider } from "@/lib/ai/load";
 import { getFirstBootStatus } from "@/lib/first-boot/store";
 import { ownerExists } from "@/lib/owner";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // Reports whether the app can reach its database, which AI provider is
 // active, whether the owner account exists and how first boot is going.
 export async function GET() {
-  const provider = getAiProvider();
+  const provider = await loadAiProvider();
   const ai = { provider: provider.name, enabled: provider.enabled };
 
   try {
