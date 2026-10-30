@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  countVerses,
   coversVerse,
   intersectRanges,
   normalizeRanges,
@@ -107,5 +108,16 @@ describe("removeVerse", () => {
     expect(removeVerse([verse(43003016), verse(43003018)], 43003018)).toEqual([verse(43003016)]);
     expect(removeVerse([verse(43003016)], 43003016)).toEqual([]);
     expect(removeVerse([verse(43003016)], 43003020)).toEqual([verse(43003016)]);
+  });
+});
+
+describe("countVerses", () => {
+  it("counts the verses of a passage, across chapters and books", () => {
+    expect(countVerses([{ start: 43003016, end: 43003021 }])).toBe(6);
+    expect(countVerses([{ start: 45008001, end: 45008039 }])).toBe(39);
+    // John 21:24 to Acts 1:2: John 21 has 25 verses.
+    expect(countVerses([{ start: 43021024, end: 44001002 }])).toBe(4);
+    expect(countVerses([{ start: 19119001, end: 19119176 }, { start: 19023001, end: 19023006 }])).toBe(182);
+    expect(countVerses([])).toBe(0);
   });
 });

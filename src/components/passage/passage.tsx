@@ -306,16 +306,18 @@ export function Attribution({
 
 // The verses as a quote: numbers, paragraphs, lines of poetry and red
 // letters, without footnotes, and without headings unless asked. What a
-// passage block shows in the editor and what its study sidebar reads; the
-// caller prints the attribution.
+// passage block shows in the editor, what its study sidebar reads and what a
+// passage card of the feed quotes; the caller prints the attribution.
 export function PassageQuote({
   ranges,
   headings = false,
+  verseNumbers = true,
   ...verses
 }: VerseSelection &
   VerseHighlights & {
     ranges: readonly (readonly VerseRecord[])[];
     headings?: boolean;
+    verseNumbers?: boolean;
   }) {
   const text = (inlines: Inline[]) => inlines.filter((inline) => inline.type === "text");
   const blocks = layoutPassage(ranges).blocks.flatMap((block): Block[] => {
@@ -325,7 +327,7 @@ export function PassageQuote({
   });
   return (
     <div className="passage-text">
-      <Blocks blocks={blocks} idPrefix="quote" {...verses} />
+      <Blocks blocks={blocks} idPrefix="quote" verseNumbers={verseNumbers} {...verses} />
     </div>
   );
 }

@@ -181,6 +181,11 @@ Each file is redistributed unmodified, under the terms above, which were read ag
 The release carries a `NOTICES.md` with each file's license notice and attribution, and a `MANIFEST.json` with each file's upstream address, download date, size and checksums.
 Nothing else is in it: no code, and nothing that is not public domain or openly licensed.
 
+## Fonts
+
+The public site and its Open Graph images use Source Serif 4 by Adobe, version 4.005, from <https://github.com/adobe-fonts/source-serif>.
+It is licensed under the [SIL Open Font License 1.1](src/fonts/source-serif-4/LICENSE.md), not MIT; the license is kept beside the files in `src/fonts/source-serif-4/`, which are unmodified copies of the publisher's TTF and WOFF2 files.
+
 ## In this repository
 
 The only Bible text committed to git is the test fixture in `src/db/seed/fixtures/bible/`: Psalms, John and Romans from each of the three translations above, as produced by the import.
