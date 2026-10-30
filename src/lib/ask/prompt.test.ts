@@ -8,7 +8,7 @@ const context: AskContext = {
   reference: "John 3:16",
   translation: { id: "bsb", abbrev: "BSB", name: "Berean Standard Bible", attribution: "", sourceUrl: "" },
   items: [
-    { id: "43003016", kind: "passage", range: { start: 43003016, end: 43003016 }, reference: "John 3:16", text: "For God so loved" },
+    { id: "43003016", kind: "passage", range: { start: 43003016, end: 43003016 }, verses: [{ start: 43003016, end: 43003016 }], reference: "John 3:16", text: "For God so loved" },
     {
       id: "c1",
       kind: "study-note",

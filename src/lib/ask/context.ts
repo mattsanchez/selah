@@ -4,6 +4,7 @@ import { getPassages, type Translation } from "@/lib/bible/passage";
 import { normalizeRanges, rangesOverlap } from "@/lib/bible/ranges";
 import { formatReference } from "@/lib/bible/reference";
 import { searchVerses } from "@/lib/bible/search";
+import type { VerseRecord } from "@/lib/bible/types";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import { embeddedTranslations, nearestWindows } from "@/lib/embeddings/passages";
 import { embedQuery } from "@/lib/embeddings/query";
@@ -44,6 +45,8 @@ export type VerseItem = {
   id: string;
   kind: "passage" | "cross-reference" | "related" | "keyword";
   range: VerseRange;
+  // The verses of it whose text is here: a translation can leave some out.
+  verses: VerseRange[];
   reference: string;
   text: string;
 };
@@ -83,6 +86,10 @@ export type ContextOptions = {
 // The words of an entry, without the reference a note opens with.
 export const entryText = (html: string) => studyText(html.replace(/<span class="ref">[\s\S]*?<\/span>/g, ""));
 
+// Stands between two parts of an excerpt that are not next to each other, so
+// that a quote cannot run across the gap as if nothing were missing.
+const GAP = "[…]";
+
 // The parts of a long text that have the most of these words, in their own
 // order, to about `limit` characters. A commentary's section on a chapter runs
 // to tens of thousands of characters; only some of it is on these verses.
@@ -102,7 +109,10 @@ export function excerptFor(text: string, words: readonly string[], limit = ENTRY
     length += each.part.length + 1;
   }
   if (chosen.length === 0) return { text: text.slice(0, limit).replace(/\s+\S*$/, ""), excerpt: true };
-  return { text: chosen.sort((a, b) => a.position - b.position).map((each) => each.part).join("\n"), excerpt: true };
+  const lines = chosen
+    .sort((a, b) => a.position - b.position)
+    .flatMap((each, i, all) => (i > 0 && each.position > all[i - 1].position + 1 ? [GAP, each.part] : [each.part]));
+  return { text: lines.join("\n"), excerpt: true };
 }
 
 // The fields of a source the rest of Ask reads.
@@ -149,6 +159,22 @@ function roundRobin(groups: readonly SourceCommentary[]) {
 }
 
 const lineOf = (texts: readonly string[]) => texts.join(" ").replace(/\s+/g, " ").trim();
+
+// A range of verses as one item, or nothing when the translation has none of them.
+function rangeItem(kind: "cross-reference" | "related", range: VerseRange, verses: readonly VerseRecord[]): VerseItem[] {
+  const text = lineOf(verses.map((verse) => verse.text));
+  if (!text) return [];
+  return [
+    {
+      id: `${range.start}-${range.end}`,
+      kind,
+      range,
+      verses: normalizeRanges(verses.map(({ verseId }) => ({ start: verseId, end: verseId }))),
+      reference: formatReference([range]),
+      text,
+    },
+  ];
+}
 
 // Candidates in order of worth, kind by kind, kept while their share lasts.
 class Budget {
@@ -233,6 +259,7 @@ export async function buildContext(
         id: String(verse.verseId),
         kind: "passage",
         range: { start: verse.verseId, end: verse.verseId },
+        verses: [{ start: verse.verseId, end: verse.verseId }],
         reference: formatReference([{ start: verse.verseId, end: verse.verseId }]),
         text: lineOf([verse.text]),
       }),
@@ -290,22 +317,14 @@ export async function buildContext(
   const crossTexts = await quote(crossRanges);
   const crossReferences = budget.take(
     "cross-reference",
-    crossRanges.flatMap((range, i): VerseItem[] => {
-      const text = lineOf((crossTexts[i] ?? []).map((verse) => verse.text));
-      return text
-        ? [{ id: `${range.start}-${range.end}`, kind: "cross-reference", range, reference: formatReference([range]), text }]
-        : [];
-    }),
+    crossRanges.flatMap((range, i) => rangeItem("cross-reference", range, crossTexts[i] ?? [])),
   );
 
   const nearRanges = (await meaningRanges(db, ranges, question, options)).filter(fresh);
   const nearTexts = await quote(nearRanges);
   const related = budget.take(
     "related",
-    nearRanges.flatMap((range, i): VerseItem[] => {
-      const text = lineOf((nearTexts[i] ?? []).map((verse) => verse.text));
-      return text ? [{ id: `${range.start}-${range.end}`, kind: "related", range, reference: formatReference([range]), text }] : [];
-    }),
+    nearRanges.flatMap((range, i) => rangeItem("related", range, nearTexts[i] ?? [])),
   );
 
   // Without anything found by meaning, the question's own words.
@@ -324,6 +343,7 @@ export async function buildContext(
           id: String(hit.verseId),
           kind: "keyword",
           range,
+          verses: [range],
           reference: formatReference([range]),
           text: lineOf(hit.text.map((segment) => segment.text)),
         };
@@ -343,12 +363,15 @@ export async function buildContext(
 // The context as what the model may cite.
 export function citableOf(context: AskContext): Citable {
   const verses: VerseRange[] = [];
+  const items: VerseRange[] = [];
   const sources: Citable["sources"] = new Map(
     context.items.flatMap((item) => {
-      if (item.kind !== "commentary" && item.kind !== "study-note") {
-        if (item.kind !== "footnote") verses.push(item.range);
+      if ("verses" in item) {
+        verses.push(...item.verses);
+        items.push(item.range);
         return [];
       }
+      if (item.kind === "footnote") return [];
       const known = ASK_SOURCES[item.source.id];
       return [
         [
@@ -364,7 +387,7 @@ export function citableOf(context: AskContext): Citable {
       ];
     }),
   );
-  return { verses, sources, t: context.t };
+  return { verses, items, sources, t: context.t };
 }
 
 // What the page lists under an answer. Who wrote what and under which license,

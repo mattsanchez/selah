@@ -254,6 +254,22 @@ test.describe("the owner", () => {
   });
 });
 
+test.describe("in a note", () => {
+  test.use({ storageState: OWNER_STATE });
+
+  test("a quote goes in too, though a note has no passage blocks", async ({ page }) => {
+    await page.goto("/write?kind=note");
+    const { sidebar, note } = editor(page);
+    await page.getByRole("button", { name: "Study" }).click();
+    await sidebar.getByRole("tab", { name: "Ask" }).click();
+    const panel = sidebar.getByRole("tabpanel", { name: "Ask" });
+    await panel.getByRole("textbox", { name: "Passage" }).fill("John 3:21");
+    await panel.getByRole("button", { name: "What do commentators say" }).click();
+    await panel.getByRole("button", { name: /Insert the quote from Tyndale/ }).click();
+    await expect(note.locator(":scope > blockquote")).toContainText("Tyndale Open Study Notes");
+  });
+});
+
 test.describe("a visitor", () => {
   test("sees nothing of Ask and gets 401 from the API", async ({ page, request }) => {
     await page.goto(PASSAGE);

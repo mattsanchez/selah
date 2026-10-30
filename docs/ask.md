@@ -30,7 +30,7 @@ About 8,000 tokens at four characters to a token (`CONTEXT_TOKENS`). A kind's un
 
 - A kind stops at its first item that does not fit, since items are in order of worth. So the end of a very long passage is what goes, and those verses cannot be cited.
 - Commentary is taken round-robin: every source's most specific entry, then every source's second, so that one long commentary does not crowd out other traditions.
-- One entry is at most about 2,000 characters: the paragraphs that share the most words with the question and the passage, in their own order (`excerpt="true"`).
+- One entry is at most about 2,000 characters: the paragraphs that share the most words with the question and the passage, in their own order (`excerpt="true"`). Where paragraphs were skipped between two kept ones, the text says `[…]`, so a quote cannot run across the gap as if nothing were missing.
 - What was left out is counted, told to the model, and listed with the answer's sources.
 
 ## What the model must write
@@ -70,7 +70,7 @@ From the spec, in the system prompt:
 
 | Written | Result |
 | :--- | :--- |
-| Citation whose verses are all in the context's verse items | A link into the reader |
+| Citation whose verses all had their text in the context, or that is one item's whole id | A link into the reader |
 | Citation of anything else, including a verse left out by the budget | Removed and counted; the page says so. Never a link |
 | `[[c1]]` of a commentary or note in the context | A link, with its name and tradition from the source |
 | Quote whose words are in that entry, in order | Shown with its credit |
@@ -79,7 +79,7 @@ From the spec, in the system prompt:
 | Text before the first heading | Ignored |
 | An answer missing a section | Shown with a note, and not saved |
 
-Words are compared without regard to case, spacing, or the style of quotation marks and dashes.
+Quote words are compared as whole words, without regard to case, spacing, or the style of quotation marks and dashes.
 
 ## An answer's schema
 
@@ -149,7 +149,7 @@ The owner's own writing is not relicensed: only the quoted note is under CC BY-S
 - `ask_answer` is keyed by a hash of `ANSWER_VERSION`, the normalized passage, the translation, the normalized question and the questions before it in the conversation, and the model. So a first question is keyed by exactly passage, translation, question and model.
 - `ask_usage` has one row per UTC day. One `insert … on conflict … where questions < cap` takes a question, so two at once cannot both take the last.
 - A cache hit costs nothing. "Ask again" skips the cache, counts, and replaces the saved answer.
-- A question is reserved before the model is called and given back if the call fails before any text.
+- A question is reserved before the model is called and given back if no text comes of it, for any reason: a failure, an empty answer, or the page leaving first.
 
 ## Who may ask
 

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@/db/client";
 import { COMMENTARY_SOURCES } from "@/lib/study/sources";
 
-import { parseAnswer } from "./answer";
+import { parseAnswer, verifyQuote } from "./answer";
 import { CONTEXT_TOKENS, buildContext, citableOf, excerptFor, sourcesOf, tokensOf, type CommentaryItem } from "./context";
 import { commentatorCards } from "./commentators";
 import { renderContext } from "./prompt";
@@ -204,7 +204,18 @@ describe("excerptFor", () => {
 
   it("keeps the parts with the question's words, in their own order", () => {
     const text = ["Nothing here.", "Love is the key.", "Other things.", "God gave love."].join("\n");
-    expect(excerptFor(text, ["love", "god"], 40)).toEqual({ text: "Love is the key.\nGod gave love.", excerpt: true });
+    expect(excerptFor(text, ["love", "god"], 40)).toEqual({ text: "Love is the key.\n[…]\nGod gave love.", excerpt: true });
+  });
+
+  it("leaves no gap between parts that were next to each other", () => {
+    const text = ["Love is here.", "God gave love.", "Nothing at all in this long line of other words."].join("\n");
+    expect(excerptFor(text, ["love", "god"], 30).text).toBe("Love is here.\nGod gave love.");
+  });
+
+  it("will not let a quote run across what it left out as if nothing were missing", () => {
+    const { text } = excerptFor(["Ends with grace.", "Nothing here to see.", "Love came next."].join("\n"), ["grace", "love"], 34);
+    expect(verifyQuote("Ends with grace. Love came next.", text)).toBeUndefined();
+    expect(verifyQuote("Ends with grace. […] Love came next.", text)).toEqual({ text: "Ends with grace. […] Love came next.", shortened: true });
   });
 
   it("cuts one long paragraph at a word", () => {
@@ -212,6 +223,23 @@ describe("excerptFor", () => {
     expect(excerpt).toBe(true);
     expect(text.length).toBeLessThanOrEqual(100);
     expect(text.endsWith("word")).toBe(true);
+  });
+});
+
+describe("what can be cited", () => {
+  it("is the verses whose text was there, when a translation leaves one out of a range", async () => {
+    mocks.verses = new Map([
+      [43003016, "For God so loved the world"],
+      [41009043, "If your hand causes you to stumble"],
+      [41009045, "If your foot causes you to stumble"],
+    ]);
+    mocks.crossRefs = [{ toStart: 41009043, toEnd: 41009045, votes: 5 }];
+    const context = await buildContext(db, [{ start: 43003016, end: 43003016 }], "Why?", { translation, provider: offline });
+    const cited = (id: string) => parseAnswer(`## What the text says\n\n[[${id}]]\n\n## Interpretation\n\nx`, citableOf(context));
+    expect(cited("41009044").dropped).toHaveLength(1);
+    expect(cited("41009043-41009044").dropped).toHaveLength(1);
+    expect(cited("41009045").dropped).toHaveLength(0);
+    expect(cited("41009043-41009045").dropped).toHaveLength(0);
   });
 });
 

@@ -55,6 +55,9 @@ export type AnswerEvent =
 export type Citable = {
   // Every verse whose text the model was given.
   verses: readonly VerseRange[];
+  // The ranges it was given as one item. Its id may be cited whole, though a
+  // translation that leaves out a verse of it leaves a gap in `verses`.
+  items?: readonly VerseRange[];
   // The commentary and notes it was given, by the id it was given them under.
   sources: ReadonlyMap<string, { source: StoredSource; label: string; reference: string; href: string; text: string }>;
   // The translation of the reader's links, when it is not the default.
@@ -116,6 +119,19 @@ const fold = (text: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const WORD_CHARACTER = /[\p{L}\p{N}]/u;
+
+// Where `piece` is in `text` from `from` on, as whole words: "sin" is not in
+// "single". -1 when it is not.
+function wholeWordsAt(text: string, piece: string, from: number): number {
+  for (let at = text.indexOf(piece, from); at >= 0; at = text.indexOf(piece, at + 1)) {
+    const before = text[at - 1] ?? " ";
+    const after = text[at + piece.length] ?? " ";
+    if (!WORD_CHARACTER.test(before) && !WORD_CHARACTER.test(after)) return at;
+  }
+  return -1;
+}
+
 // The words of a quote when they are in the source, in order, with "[…]"
 // wherever the quote skips some. Undefined when they are not.
 export function verifyQuote(written: string, source: string): { text: string; shortened: boolean } | undefined {
@@ -125,7 +141,7 @@ export function verifyQuote(written: string, source: string): { text: string; sh
   const folded = fold(source);
   let from = 0;
   for (const piece of words) {
-    const at = folded.indexOf(fold(piece), from);
+    const at = wholeWordsAt(folded, fold(piece), from);
     if (at < 0) return undefined;
     from = at + fold(piece).length;
   }
@@ -249,7 +265,10 @@ export class AnswerParser {
       return [{ type: "segment", segment: { type: "source", id: inner, label, reference, href } }];
     }
     const ranges = citedRanges(inner);
-    if (!ranges?.every((range) => within(range, this.verses))) {
+    const given = (range: VerseRange) =>
+      within(range, this.verses) ||
+      this.citable.items?.some(({ start, end }) => start === range.start && end === range.end);
+    if (!ranges?.every(given)) {
       return [{ type: "dropped", dropped: { kind: "citation", written: clip(inner) } }];
     }
     return ranges.map((range) => ({

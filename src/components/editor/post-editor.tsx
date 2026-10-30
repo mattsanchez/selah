@@ -20,7 +20,7 @@ import type { ItemVisibility } from "@/lib/items/queries";
 import { MAX_ITEM_TITLE_LENGTH, MAX_NOTE_BODY_LENGTH } from "@/lib/items/validate";
 
 import { slashItems, type BlockContext } from "./blocks";
-import { PassageNode, PostDocument } from "./passage-node";
+import { PassageNode, PostDocument, QuoteCommands } from "./passage-node";
 import { primePassages } from "./passages";
 import { PublishMenu } from "./publish-menu";
 import { SettingsMenu } from "./settings-menu";
@@ -199,6 +199,7 @@ export function PostEditor(props: PostEditorProps) {
     };
     return [
       ...(reflection ? [PostDocument, PassageNode.configure({ translations })] : []),
+      QuoteCommands,
       StarterKit.configure({
         document: reflection ? false : undefined,
         // Markdown has no way to write these.

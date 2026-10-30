@@ -22,7 +22,7 @@ vi.mock("./context", async (original) => ({
     reference: "John 3:16",
     translation: { id: "bsb", abbrev: "BSB", name: "BSB", attribution: "", sourceUrl: "" },
     items: [
-      { id: "43003016", kind: "passage", range: { start: 43003016, end: 43003016 }, reference: "John 3:16", text: "For God so loved the world" },
+      { id: "43003016", kind: "passage", range: { start: 43003016, end: 43003016 }, verses: [{ start: 43003016, end: 43003016 }], reference: "John 3:16", text: "For God so loved the world" },
       {
         id: "c1",
         kind: "study-note",
@@ -143,6 +143,24 @@ describe("answerStream", () => {
     expect(events.at(-1)).toMatchObject({ type: "failed", message: expect.stringContaining("Try again") });
     expect(mocks.releaseQuestion).toHaveBeenCalledOnce();
     expect(mocks.saveAnswer).not.toHaveBeenCalled();
+  });
+
+  it("gives the question back when the answer ends with no words", async () => {
+    const empty: AiProvider = { ...createStubProvider(), async *stream() {} };
+    const events = await run(empty);
+    expect(events.at(-1)).toEqual({ type: "done", saved: false });
+    expect(mocks.releaseQuestion).toHaveBeenCalledOnce();
+  });
+
+  it("gives the question back when the page leaves before the model was asked", async () => {
+    const provider = { ...createStubProvider(), stream: vi.fn() };
+    const first = await preflight(db, request, settings);
+    if (first.kind !== "go") throw new Error(first.kind);
+    const events = answerStream(db, provider, request, first);
+    expect((await events.next()).value).toMatchObject({ type: "sources" });
+    await events.return(undefined);
+    expect(provider.stream).not.toHaveBeenCalled();
+    expect(mocks.releaseQuestion).toHaveBeenCalledOnce();
   });
 
   it("keeps the count, and saves nothing, when an answer stopped halfway", async () => {

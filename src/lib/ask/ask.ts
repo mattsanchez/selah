@@ -80,8 +80,8 @@ export async function preflight(
   return (await reserveQuestion(db, cap, day)) ? { kind: "go", key, day } : { kind: "capped" };
 }
 
-// The answer, as it is written. A question that came to nothing is given back
-// to the day's cap.
+// The answer, as it is written. A question that brought no words back, for
+// any reason, is given back to the day's cap.
 export async function* answerStream(
   db: Db,
   provider: AiProvider,
@@ -114,8 +114,10 @@ export async function* answerStream(
     if (whole) await saveAnswer(db, key, { answer, sources });
     yield { type: "done", saved: whole };
   } catch (error) {
-    if (!wrote) await releaseQuestion(db, day).catch(() => {});
     yield { type: "failed", message: failureMessage(error) };
+  } finally {
+    // However it ended, the page having gone included.
+    if (!wrote) await releaseQuestion(db, day).catch(() => {});
   }
 }
 

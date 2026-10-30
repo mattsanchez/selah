@@ -1,6 +1,6 @@
 "use client";
 
-import { Node, type Editor } from "@tiptap/core";
+import { Extension, Node, type Editor } from "@tiptap/core";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import { closeHistory } from "@tiptap/pm/history";
 import { NodeSelection, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
@@ -34,6 +34,8 @@ declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     passage: {
       insertPassage: (passage: { reference: string; translation?: string | null }) => ReturnType;
+    };
+    quote: {
       // A quote and its credit, as quoteNode() in src/lib/ask/quote.ts makes it.
       insertQuote: (quote: EditorNode) => ReturnType;
     };
@@ -81,6 +83,22 @@ function placeBlock(state: EditorState, tr: Transaction, node: PmNode) {
   }
   tr.setSelection(TextSelection.create(tr.doc, after + 1)).scrollIntoView();
 }
+
+// Quotes go in notes too, which have no passage blocks, so this is apart from
+// the passage node.
+export const QuoteCommands = Extension.create({
+  name: "quoteCommands",
+  addCommands() {
+    return {
+      insertQuote:
+        (quote) =>
+        ({ state, tr }) => {
+          placeBlock(state, tr, state.schema.nodeFromJSON(quote));
+          return true;
+        },
+    };
+  },
+});
 
 export type PassageOptions = {
   // Every loaded translation, the site's default first.
@@ -147,12 +165,6 @@ export const PassageNode = Node.create<PassageOptions>({
         ({ reference, translation = null }) =>
         ({ state, tr }) => {
           placeBlock(state, tr, state.schema.nodes.passage.create({ reference, translation, source: null }));
-          return true;
-        },
-      insertQuote:
-        (quote) =>
-        ({ state, tr }) => {
-          placeBlock(state, tr, state.schema.nodeFromJSON(quote));
           return true;
         },
     };

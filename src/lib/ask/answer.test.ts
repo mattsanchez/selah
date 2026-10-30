@@ -106,6 +106,12 @@ describe("quotes", () => {
     expect(verifyQuote("", "anything")).toBeUndefined();
   });
 
+  it("matches whole words only", () => {
+    expect(verifyQuote("God […] the", "Godly other")).toBeUndefined();
+    expect(verifyQuote("without sin", "without single thought")).toBeUndefined();
+    expect(verifyQuote("without sin", "He was without single thought, and without sin.")).toEqual({ text: "without sin", shortened: false });
+  });
+
   it("cuts a long quote and marks the cut", () => {
     const source = Array.from({ length: 90 }, (_, i) => `word${i}`).join(" ");
     const verified = verifyQuote(source, source)!;
