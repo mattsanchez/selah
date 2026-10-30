@@ -7,12 +7,14 @@ import { FormMessage } from "@/components/ui/field";
 import { getDb } from "@/db/client";
 import { AI_KEY_NAMES, AI_KEYS, getAiKeySources } from "@/lib/ai/keys";
 import { loadAiProvider } from "@/lib/ai/load";
+import { countAnswers, dailyCap, questionsUsed } from "@/lib/ask/store";
 import { requireOwner } from "@/lib/auth/owner";
 import { listTranslations } from "@/lib/bible/passage";
 import { getEmbeddingStatus } from "@/lib/embeddings/job";
 import { getFirstBootStatus } from "@/lib/first-boot/store";
 import { getSite } from "@/lib/site";
 
+import { AskSettings } from "./ask-settings";
 import { EmbeddingPanel } from "./embedding-panel";
 import { SettingsForm } from "./settings-form";
 
@@ -26,11 +28,13 @@ export default async function SettingsPage() {
   if (!site) redirect("/setup");
 
   const provider = await loadAiProvider();
-  const [translations, sources, firstBoot, embeddings] = await Promise.all([
+  const [translations, sources, firstBoot, embeddings, used, savedAnswers] = await Promise.all([
     listTranslations(db, site.defaultTranslationId),
     getAiKeySources(),
     getFirstBootStatus(db),
     getEmbeddingStatus(db, provider, { defaultId: site.defaultTranslationId }),
+    questionsUsed(db),
+    countAnswers(db),
   ]);
 
   return (
@@ -62,6 +66,19 @@ export default async function SettingsPage() {
           }))}
         />
       </div>
+
+      <section aria-labelledby="ask-heading" className="mt-12 space-y-4">
+        <h2 id="ask-heading" className="font-serif text-2xl tracking-tight">
+          Ask
+        </h2>
+        <AskSettings
+          on={provider.answerModel !== null}
+          keySet={sources.anthropic === "environment" || sources.anthropic === "saved"}
+          cap={dailyCap(site.settings)}
+          used={used}
+          savedAnswers={savedAnswers}
+        />
+      </section>
 
       <section aria-labelledby="meaning-heading" className="mt-12 space-y-4">
         <h2 id="meaning-heading" className="font-serif text-2xl tracking-tight">

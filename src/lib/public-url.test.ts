@@ -105,6 +105,25 @@ describe("permalinks", () => {
   });
 });
 
+describe("a quoted study note", () => {
+  const quote =
+    "> The words of the note.\n>\n> — Adapted from [Tyndale Open Study Notes](https://tyndaleopenresources.com/), [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).";
+
+  it("stays out of a description, which has no room for its license", () => {
+    const reflection = item({ kind: "reflection", title: "T", markdown: `${quote}\n\nMy own words.` });
+    expect(itemSummary(reflection)).toBe("My own words.");
+  });
+
+  it("stays out of the name of an untitled post", () => {
+    const reflection = item({ kind: "reflection", markdown: `${quote}\n\nMy own words.` });
+    expect(itemHeadline(reflection)).toBe("My own words.");
+  });
+
+  it("leaves a quote of anything else in", () => {
+    expect(itemSummary(item({ markdown: "> Matthew Henry wrote this.\n\nMine." }))).toContain("Matthew Henry");
+  });
+});
+
 describe("a link to an item by its id", () => {
   const reflection = item({ kind: "reflection", title: "No condemnation", markdown: "Text." });
   const highlight = item({

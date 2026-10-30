@@ -6,6 +6,7 @@ import { Attribution } from "@/components/passage/passage";
 import type { FeedEntry } from "@/lib/items/feed";
 import { highlightColor } from "@/lib/items/palette";
 import type { ItemKind } from "@/lib/items/queries";
+import { shareAlikeNotice } from "@/lib/items/share-alike";
 
 import { PassageCard } from "./passage-card";
 
@@ -14,6 +15,9 @@ const KIND: Record<ItemKind, string> = {
   reflection: "Reflection",
   note: "Note",
 };
+
+const noticeLink =
+  "underline decoration-stone-300 underline-offset-2 hover:text-stone-700 dark:decoration-stone-600 dark:hover:text-stone-200";
 
 type FeedItemProps = {
   // From loadFeedEntries() in src/lib/items/feed.ts.
@@ -144,6 +148,26 @@ export function FeedItem({
         <div className="mt-3 space-y-1">
           {entry.translations.map((translation) => (
             <Attribution key={translation.id} translation={translation} />
+          ))}
+        </div>
+      )}
+
+      {entry.shareAlike.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {entry.shareAlike.map((source) => (
+            <p
+              key={source.id}
+              data-share-alike={source.id}
+              className="font-sans text-xs leading-5 text-stone-500 dark:text-stone-400"
+            >
+              {shareAlikeNotice(source)}{" "}
+              <a href={source.licenseUrl} rel="license noreferrer" className={noticeLink}>
+                License
+              </a>{" "}
+              <a href={source.sourceUrl} rel="noreferrer" className={noticeLink}>
+                Source
+              </a>
+            </p>
           ))}
         </div>
       )}

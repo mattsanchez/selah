@@ -26,7 +26,7 @@
     "fixture:study": "tsx scripts/build-study-fixture.ts",
     "data:release": "tsx scripts/data-release.ts",
     "data:check": "tsx scripts/data-check.ts",
-    "e2e:serve": "export AI_PROVIDER=stub && next build && next start --hostname 127.0.0.1 --port ${E2E_PORT:-3000}",
+    "e2e:serve": "export AI_PROVIDER=stub AI_STUB_CHUNK_DELAY_MS=20 && next build && next start --hostname 127.0.0.1 --port ${E2E_PORT:-3000}",
     "e2e": "playwright test",
     "build:boot": "esbuild scripts/boot.ts --bundle --platform=node --format=esm --target=node22 --external:@node-rs/argon2 --banner:js=\"import{createRequire as __cr}from'node:module';const require=__cr(import.meta.url);\" --outfile=dist/boot.mjs",
     "first-boot": "tsx scripts/first-boot.ts",

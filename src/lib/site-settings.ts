@@ -8,4 +8,8 @@ export type SiteSettings = {
     anthropicApiKey?: string;
     voyageApiKey?: string;
   };
+  ask?: {
+    // How many questions may reach the model in a day; see src/lib/ask/store.ts.
+    dailyCap?: number;
+  };
 };

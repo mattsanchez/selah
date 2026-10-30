@@ -3,12 +3,12 @@
 import { Node, type Editor } from "@tiptap/core";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import { closeHistory } from "@tiptap/pm/history";
-import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection, type EditorState, type Transaction } from "@tiptap/pm/state";
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 
 import { Attribution, PassageQuote } from "@/components/passage/passage";
 import { findTranslation } from "@/lib/items/cards";
-import type { PassageAttrs } from "@/lib/items/editor-document";
+import type { EditorNode, PassageAttrs } from "@/lib/items/editor-document";
 import type { TranslationInfo } from "@/lib/editor/types";
 
 import { fetchPassage, usePassage } from "./passages";
@@ -34,8 +34,52 @@ declare module "@tiptap/core" {
   interface Commands<ReturnType> {
     passage: {
       insertPassage: (passage: { reference: string; translation?: string | null }) => ReturnType;
+      // A quote and its credit, as quoteNode() in src/lib/ask/quote.ts makes it.
+      insertQuote: (quote: EditorNode) => ReturnType;
     };
   }
+}
+
+// Puts a block where the cursor is, as above.
+function placeBlock(state: EditorState, tr: Transaction, node: PmNode) {
+  // Its own step of Undo, apart from what was typed just before.
+  closeHistory(tr);
+  const { selection } = state;
+  const { $from } = selection;
+  // Where it goes.
+  let at: number;
+  if ($from.depth === 0) {
+    // A block is selected (or the cursor is between two): after it.
+    at = selection instanceof NodeSelection ? selection.to : $from.pos;
+    tr.insert(at, node);
+  } else {
+    const top = $from.node(1);
+    const start = $from.before(1);
+    const inTop = $from.depth === 1 && top.isTextblock;
+    at = start;
+    if (top.type.name === "paragraph" && top.content.size === 0) {
+      // In place of an empty paragraph.
+      tr.replaceWith(start, $from.after(1), node);
+    } else if (inTop && $from.parentOffset === 0) {
+      tr.insert(start, node);
+    } else if (inTop && $from.parentOffset < top.content.size) {
+      // Between the halves of the paragraph.
+      tr.split($from.pos);
+      at = $from.pos + 1;
+      tr.insert(at, node);
+    } else {
+      // After the paragraph, list or quote.
+      at = $from.after(1);
+      tr.insert(at, node);
+    }
+  }
+
+  // The cursor goes into the text after the block, which there always is.
+  const after = at + node.nodeSize;
+  if (!tr.doc.resolve(after).nodeAfter?.isTextblock) {
+    tr.insert(after, state.schema.nodes.paragraph.create());
+  }
+  tr.setSelection(TextSelection.create(tr.doc, after + 1)).scrollIntoView();
 }
 
 export type PassageOptions = {
@@ -102,46 +146,13 @@ export const PassageNode = Node.create<PassageOptions>({
       insertPassage:
         ({ reference, translation = null }) =>
         ({ state, tr }) => {
-          const node = state.schema.nodes.passage.create({ reference, translation, source: null });
-          // Its own step of Undo, apart from what was typed just before.
-          closeHistory(tr);
-          const { selection } = state;
-          const { $from } = selection;
-          // Where it goes.
-          let at: number;
-          if ($from.depth === 0) {
-            // A block is selected (or the cursor is between two): after it.
-            at = selection instanceof NodeSelection ? selection.to : $from.pos;
-            tr.insert(at, node);
-          } else {
-            const top = $from.node(1);
-            const start = $from.before(1);
-            const inTop = $from.depth === 1 && top.isTextblock;
-            at = start;
-            if (top.type.name === "paragraph" && top.content.size === 0) {
-              // In place of an empty paragraph.
-              tr.replaceWith(start, $from.after(1), node);
-            } else if (inTop && $from.parentOffset === 0) {
-              tr.insert(start, node);
-            } else if (inTop && $from.parentOffset < top.content.size) {
-              // Between the halves of the paragraph.
-              tr.split($from.pos);
-              at = $from.pos + 1;
-              tr.insert(at, node);
-            } else {
-              // After the paragraph, list or quote.
-              at = $from.after(1);
-              tr.insert(at, node);
-            }
-          }
-
-          // The cursor goes into the text after the passage, which there
-          // always is.
-          const after = at + node.nodeSize;
-          if (!tr.doc.resolve(after).nodeAfter?.isTextblock) {
-            tr.insert(after, state.schema.nodes.paragraph.create());
-          }
-          tr.setSelection(TextSelection.create(tr.doc, after + 1)).scrollIntoView();
+          placeBlock(state, tr, state.schema.nodes.passage.create({ reference, translation, source: null }));
+          return true;
+        },
+      insertQuote:
+        (quote) =>
+        ({ state, tr }) => {
+          placeBlock(state, tr, state.schema.nodeFromJSON(quote));
           return true;
         },
     };

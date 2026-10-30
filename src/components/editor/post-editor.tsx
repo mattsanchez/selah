@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { Attribution, PassageQuote } from "@/components/passage/passage";
 import type { VerseRange } from "@/lib/bible/verse-id";
+import { quoteNode } from "@/lib/ask/quote";
 import { linkHref } from "@/lib/editor/links";
 import { STUDY_COOKIE, type PassageData, type TranslationInfo } from "@/lib/editor/types";
 import { docToMarkdown, markdownToDoc, type EditorNode } from "@/lib/items/editor-document";
@@ -49,6 +50,8 @@ export type PostEditorProps = {
   // Every loaded translation, the site's default first.
   translations: TranslationInfo[];
   // The ids of those that can be searched by meaning.
+  // Whether this install can answer questions: the Ask tab.
+  ask: boolean;
   meaningTranslations: string[];
   // The verses of the cards the post opens with (src/components/editor/passages.ts).
   passages: Record<string, PassageData>;
@@ -305,6 +308,7 @@ export function PostEditor(props: PostEditorProps) {
   const bridge: Omit<StudyBridge, "translationId"> = {
     passages: reflection,
     translations,
+    ask: props.ask,
     meaningTranslations: props.meaningTranslations,
     itemId: autosave.id,
     reading,
@@ -321,6 +325,11 @@ export function PostEditor(props: PostEditorProps) {
     insertPassage: (reference, translation) => {
       if (!editor) return;
       editor.chain().focus().insertPassage({ reference, translation }).run();
+      if (narrow) setSheetOpen(false);
+    },
+    insertQuote: (quote) => {
+      if (!editor) return;
+      editor.chain().focus().insertQuote(quoteNode(quote)).run();
       if (narrow) setSheetOpen(false);
     },
     insertLink: (text, href) => {

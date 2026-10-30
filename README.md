@@ -6,7 +6,7 @@ Look up or search a passage, compare translations, study it with cross reference
 Inspired by Posterous, shaped like Ghost, built for Bible study.
 
 Status: pre-MVP. The product spec and milestones are in [docs/spec.md](docs/spec.md).
-You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, reflections and notes with tags and visibility, the public site with its feeds, search by meaning with a Voyage AI key, and export of everything you have made; Ask comes next.
+You can already [run your own copy](#self-hosting): it has the Bible reader, the owner account, verse highlights, reflections and notes with tags and visibility, the public site with its feeds, search by meaning with a Voyage AI key, grounded questions about a passage with an Anthropic key, and export of everything you have made.
 
 ## Self-hosting
 
@@ -85,7 +85,7 @@ The setup screen and the Settings page say where each step's files came from ("D
 
 `SELAH_DATA_MIRROR` changes this (see [Configuration](#configuration)): `off` downloads from the publishers only, and a URL names a mirror of your own, which must serve each file under the name it has in the data release.
 
-After first boot Selah needs no outbound access (until you turn on AI or email; meaning search reaches `api.voyageai.com`).
+After first boot Selah needs no outbound access (until you turn on AI or email; meaning search reaches `api.voyageai.com`, and Ask reaches `api.anthropic.com`).
 No Bible text, cross references or commentary is in the image, and the repository holds only the small test fixture; [DATA-LICENSES.md](DATA-LICENSES.md) lists each source and its license.
 
 If a download fails, the others still load, and the setup screen (and later the Settings page) says which source failed and why.
@@ -118,7 +118,7 @@ Everything is optional. Put what you need in a `.env` file beside `docker-compos
 | `SELAH_DATA_MIRROR` | Selah's data release on GitHub | Where first boot asks for each source file before it asks the publisher. `off`: the publishers only. A URL, e.g. `https://files.example.org/selah`: your own copy of the [data release](#data-releases)'s files, each under the same name. Every file is checked against the same checksum wherever it came from. |
 | `SMTP_URL` | unset | An SMTP server, e.g. `smtp://user:password@smtp.example.org:587` (or `smtps://` for port 465). With `EMAIL_FROM` and `SELAH_URL`, turns on sign-in links by email. |
 | `EMAIL_FROM` | unset | The sender of those emails, e.g. `Selah <selah@example.org>`. Required with `SMTP_URL`. |
-| `ANTHROPIC_API_KEY` | unset | An Anthropic API key, instead of saving one in Settings. |
+| `ANTHROPIC_API_KEY` | unset | An Anthropic API key, instead of saving one in Settings. Turns on [Ask](#ask). |
 | `VOYAGE_API_KEY` | unset | A Voyage AI API key, instead of saving one in Settings. |
 | `SELAH_DB_PORT` | `5432` | The port Postgres is published on, on `127.0.0.1` only. |
 
@@ -128,7 +128,7 @@ Ten wrong passwords for an email within fifteen minutes lock password sign-in fo
 When `SMTP_URL`, `EMAIL_FROM` and `SELAH_URL` are all set, the sign-in page also offers to email a sign-in link; the link works once, for fifteen minutes, and is only ever sent to the owner's address.
 Sessions are encrypted cookies that last 30 days and survive restarts and upgrades.
 
-**AI keys.** AI is off until there is a key; everything else works without one. A Voyage AI key turns on [meaning search](#meaning-search); the Anthropic key is for a later version.
+**AI keys.** AI is off until there is a key; everything else works without one. An Anthropic key turns on [Ask](#ask); a Voyage AI key turns on [meaning search](#meaning-search). Either works without the other.
 A key can come from the environment (`ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`), which takes precedence, or be saved at setup or in Settings.
 A saved key is encrypted (AES-256-GCM) with a key derived from the install's secret before it goes into the database, so a database dump alone does not reveal it.
 Once saved it is never sent back to the browser, not even masked: Settings says only that a key is saved, and lets you replace or remove it.
@@ -212,7 +212,7 @@ To skip setup, seed the test owner as well: `SELAH_SEED_TEST_OWNER=1 pnpm db:see
 | `pnpm fixture:study` | Rebuild the committed study fixture from the pinned sources |
 | `pnpm data:release` | Stage the [data release](#data-releases) from the download cache and verify it; with `--publish`, publish it |
 | `pnpm data:check` | Compare every pinned source with what its publisher serves today and print what changed; see [checking upstream for changes](#checking-upstream-for-changes) |
-| `pnpm e2e:serve` | Build and serve on 127.0.0.1:3000 against the seeded database with the AI provider stubbed |
+| `pnpm e2e:serve` | Build and serve on 127.0.0.1:3000 against the seeded database with the AI provider stubbed (its answers are canned) |
 | `pnpm e2e` | Playwright tests; reuses a running `pnpm e2e:serve`, or starts one. It also seeds the test owner and starts a second server for journey 1; see [Owner account](#owner-account-and-settings) |
 
 Before the first `pnpm e2e`, install the browser with `pnpm exec playwright install chromium`.
@@ -386,6 +386,7 @@ Every passage has its own URL, and the `t` parameter picks the translations: one
 | `/read/psalm-23?t=web` | Psalm 23 in the WEB |
 | `/read/john-3.16-21?t=bsb,web,kjv` | Three translations side by side |
 | `/read/john-3?v=john-3.16` | John 3 with verse 16 selected and the study panel open on it |
+| `/read/john-3.16-21?ask=1` | John 3:16-21 with the [Ask](#ask) panel open, for the owner of an install that has it |
 | `/read/jn3.16`, `/read?q=jn3.16` | Redirect to `/read/john-3.16` |
 
 Click a verse, or follow its number from the keyboard, to study it: a panel opens with the verse's cross references ranked by votes, its footnotes, the commentaries and the Tyndale study notes, each with its attribution.
@@ -490,7 +491,7 @@ For anyone building on them:
 - **AI keys**: `getAiKeys()` in `src/lib/ai/keys.ts` returns `{ anthropic?, voyage? }`, from the environment or the encrypted settings. Server-only: never pass a key to a client component or return it from a server action. Application code rarely needs them: `loadAiProvider()` in `src/lib/ai/load.ts` gives the install's provider.
 - **Email**: `getMailer()` in `src/lib/email` (undefined when no SMTP is configured). With `EMAIL_TRANSPORT=stub` it writes each message to `<data dir>/outbox/` and sends nothing; tests use that.
 - **First boot**: the ordered list is `firstBootSteps` in `scripts/first-boot-steps.ts`. Append new imports there, one `importStep({ id, title, version, what, load })` each: `version` is what the step loads (its pinned checksums; a done step runs again only when it changes) and `load` must be idempotent. Steps are independent: a failed one is recorded with a message and the rest still run. Downloads go through `download(urls)` in `src/lib/bible/import/download.ts`, which tries a list of URLs in order, so a mirror is a second URL. Progress is kept in the `boot_step` table; the runner is `src/lib/first-boot/runner.ts`.
-- **Tests**: `pnpm e2e` runs two servers from one build. The fixture server has the seeded fixture and a test owner; a spec that needs the owner signed in says `test.use({ storageState: OWNER_STATE })` (from `e2e/owner.ts`), and is a signed-out visitor otherwise. Journey 1 runs against a second server and a database with no owner, recreated for each run (`e2e/fresh-install/`, `scripts/e2e-fresh-install.ts`). Tests on the fixture server run in parallel and share the site settings, so they must not change the title or the default translation.
+- **Tests**: `pnpm e2e` runs two servers from one build. The fixture server has the seeded fixture and a test owner; a spec that needs the owner signed in says `test.use({ storageState: OWNER_STATE })` (from `e2e/owner.ts`), and is a signed-out visitor otherwise. Journey 1 runs against a second server and a database with no owner, recreated for each run (`e2e/fresh-install/`, `scripts/e2e-fresh-install.ts`). Tests on the fixture server run in parallel and share the site settings, so they must not change the title or the default translation. A journey that needs a low Ask cap sends the `x-selah-test-cap` header, which only the stub provider honours.
 
 ## Search
 
@@ -549,6 +550,49 @@ A search costs one short query, and is free when it repeats one recently asked. 
 - **When Voyage fails**: requests are paced, and back off and retry on a rate limit or a server error. A search that cannot be embedded is a keyword search. A run that fails says so in Settings, and what it finished is kept.
 
 **Not calibrated yet.** The similarity below which a passage counts as no match (`MIN_SIMILARITY` in `src/lib/ai/voyage.ts`) is a judgement, not a measurement. It decides where a list stops, not its order.
+
+## Ask
+
+With an Anthropic key, the owner can ask about the passage open in the reader, or in the editor's study sidebar while writing. Answers come from Claude (`claude-sonnet-5-5`), grounded in the passage and its study sources, with what the text says kept apart from how people have read it. Without a key nothing here exists: no link, no tab, no line on any page but Settings.
+
+**Turning it on.** Paste an Anthropic API key under "AI keys" in Settings, or set `ANTHROPIC_API_KEY`, which wins over a saved key. "Test the key" makes one very small call. `AI_PROVIDER=none` keeps Ask off whatever keys there are. Ask does not need a Voyage key; with one, it also reads passages found by meaning, and without one it uses keyword matches.
+
+**Who can use it.** Only the signed-in owner, checked on every call to the API. A question spends the owner's key, and the public site is for visitors, so there is no public Ask.
+
+**In the reader.** "Ask about this passage" opens a panel on the passage, or on the selected verses; the study panel has an Ask tab too. A conversation of up to six questions stays in that browser tab, per passage and translation. The server keeps none of it beyond the saved answers.
+
+**In the editor.** The study sidebar's Ask tab opens on the last passage in the post, or the one open in Read, or any you type.
+
+- "Suggest related passages" lists passages by meaning, cross reference and shared words, and "What do commentators say" lists a short excerpt from each commentator, word for word. Neither calls Claude or counts toward the cap.
+- Each suggestion, cited passage and quote has its own Insert button. Nothing goes into a post without that click, and an answer's own words have no way in at all: AI never writes the reflection.
+
+**An answer.** It has two sections, "What the text says" and "Interpretation", followed by its sources. Citations are links into the reader. A commentator is named with their tradition, as in "Matthew Henry (English Puritan tradition) writes…".
+
+- A citation is linked only if its verses were in what Claude was given. One that was not is removed, and the answer says so.
+- A quote is shown only if its words are in the entry it names, and the name, tradition, attribution and license beside it come from the database, not from Claude.
+- The contract, including the tone rules, is in [docs/ask.md](docs/ask.md).
+
+**Tone.** Claude is told to separate text from interpretation, to take no denominational position beyond the sources it cites, to give more than one reading where they differ, not to present pastoral advice as scripture, and to say when the text is silent.
+
+**What is sent to Anthropic.** The passage in the translation being read, its footnotes, excerpts of the commentaries and of the Tyndale Open Study Notes on it, the verses of its cross references, any related passages, the question, and the earlier turns of that conversation. Nothing else: no highlights, notes, reflections, account details or site settings. Commentary entries are not sent whole: the context has a budget of about 8,000 tokens, and each answer lists what was left out.
+
+**Cost.** A question sends at most about 8,500 tokens and gets back at most 8,000, thinking included, at Sonnet's $2 and $10 per million: about 10 cents at the very most, and usually far less. That ceiling comes from the limits in the code; real answers have not been measured.
+
+- **Daily cap.** At most 50 questions a day reach Claude, which Settings can change. The day is UTC. A saved answer does not count, "Ask again" does, and a question that fails before any answer comes back is given back.
+- **Saved answers.** An answer is saved by passage, translation, question and model, and a repeat is shown at once, marked "Saved answer". "Clear saved answers" in Settings empties them. Answers cut short or missing a section are not saved.
+
+**Tyndale Open Study Notes and share-alike.** Ask reads the notes, so their text is sent to Anthropic as context and can be quoted in answers, cards and saved answers. They are under CC BY-SA 4.0, so Claude is told to quote them and not rewrite them, and every quote carries its attribution and a license link, added by the app from the source's id. Wherever words are left out of a quote, it shows `[…]`.
+
+When you insert a note into a post, it goes in as a blockquote with its credit and license inside the quote. That quoted part stays under CC BY-SA 4.0, and your own writing around it stays yours: the quote block says so, and every public page and feed entry of the post prints a notice. If you rework a note's words into your own text rather than quoting them, that reworked text is an adaptation, and CC BY-SA 4.0 applies to it.
+
+**Tests use canned answers.** With `AI_PROVIDER=stub`, which the tests and `pnpm e2e:serve` use, answers are canned: the stub repeats retrieved verses and the first words of commentary, in the right shape, with no network. They show that the machinery works and say nothing about the quality of a real answer.
+
+The pieces, for anyone building on them:
+
+- `src/lib/ai/claude.ts`: the Messages API over `fetch`, with the pinned model names. `getAiProvider()` composes it with Voyage.
+- `src/lib/ask/sources.ts`: the sources Ask reads, one line each, with each one's tradition. Adding a source to this table is all it takes for retrieval to read it.
+- `src/lib/ask/context.ts`: `buildContext`. `prompt.ts`: what Claude is told. `answer.ts`: parsing and validating what comes back. `quote.ts`: quotes and their credits. `store.ts`: the cache and the cap.
+- `src/lib/items/share-alike.ts`: finds a share-alike quote in stored Markdown, for the public notice.
 
 ## Export
 

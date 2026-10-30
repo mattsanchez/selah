@@ -180,6 +180,8 @@ test("the owner changes the settings later, and saved keys are never shown", asy
   await expect(page.locator("[data-ai-key='voyage']")).toHaveAttribute("data-source", "none");
   expect(await page.content()).not.toContain(ANTHROPIC_KEY);
   await expect(page.locator("[data-embedding-state='off']")).toContainText("Add a Voyage AI key");
+  // AI_PROVIDER=none on this server: a saved key does not turn Ask on.
+  await expect(page.locator("[data-ask-state='off']")).toContainText("AI_PROVIDER");
 
   await page.getByLabel("Handle").fill("no spaces allowed");
   await page.getByRole("button", { name: "Save settings" }).click();
@@ -197,6 +199,7 @@ test("the owner changes the settings later, and saved keys are never shown", asy
   await expect(page.getByLabel("Site title")).toHaveValue("Evening Pages");
   await expect(page.getByLabel("Handle")).toHaveValue("matt-s");
   await expect(anthropic).toHaveAttribute("data-source", "none");
+  await expect(page.locator("[data-ask-state='off']")).toContainText("Add an Anthropic API key");
   await expect(page.locator("[data-ai-key='voyage']")).toHaveAttribute("data-source", "saved");
   expect(await page.content()).not.toContain("pa-e2e-not-a-real-key");
 
@@ -206,6 +209,30 @@ test("the owner changes the settings later, and saved keys are never shown", asy
   await expect(page.locator("[data-passage='kjv']")).toContainText(
     "For God so loved the world, that he gave his only begotten",
   );
+});
+
+test("with AI off, Ask is not there, for the owner either", async ({ page, request }) => {
+  await page.goto("/sign-in?next=%2Fread%2Fjohn-3.16");
+  await signIn(page);
+  await expect(ownerBar(page)).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "John 3:16" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Ask about/ })).toHaveCount(0);
+  await page.goto("/read/john-3.16?ask=1");
+  await expect(page.locator("[data-ask-panel]")).toHaveCount(0);
+  await page.goto("/read/john-3.16?v=john-3.16");
+  await expect(page.getByRole("complementary", { name: "John 3:16" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Panel" })).toHaveCount(0);
+
+  await page.goto("/write");
+  const tabs = page.getByRole("tablist", { name: "Study" }).getByRole("tab");
+  await expect(tabs.first()).toBeVisible();
+  await expect(tabs.filter({ hasText: "Ask" })).toHaveCount(0);
+
+  // Signed in with this context's cookies: the owner, and still no Ask.
+  const asked = await page.request.post("/api/ask", { data: { reference: "John 3:16", question: "Why?" } });
+  expect(asked.status()).toBe(404);
+  // A visitor learns nothing more than on any other install.
+  expect((await request.post("/api/ask", { data: { reference: "John 3:16", question: "Why?" } })).status()).toBe(401);
 });
 
 test("with email configured, the owner signs in by a link that works once", async ({ page }) => {

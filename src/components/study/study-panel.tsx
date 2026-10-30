@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { PANEL_CLASS } from "@/components/ask/reader-ask-panel";
 import { getDb } from "@/db/client";
 import { loadAiProvider } from "@/lib/ai/load";
 import { getPassages, type Translation } from "@/lib/bible/passage";
@@ -58,6 +59,8 @@ type StudyPanelProps = {
   footnotes: readonly PanelFootnotes[];
   // What can be done with the selection, printed above the study.
   actions?: ReactNode;
+  // "Study" and "Ask", for the owner of an install that can answer.
+  tabs?: ReactNode;
 };
 
 // Verse text on one line, cut to a preview.
@@ -130,6 +133,7 @@ export async function StudyPanel({
   translation,
   footnotes,
   actions,
+  tabs,
 }: StudyPanelProps) {
   const db = getDb();
   const verse = { start: verseId, end: verseId };
@@ -252,7 +256,7 @@ export async function StudyPanel({
       tabIndex={-1}
       aria-labelledby="study-title"
       data-study-verse={verseId}
-      className="fixed inset-x-0 bottom-0 z-20 max-h-[55vh] overflow-y-auto border-t border-stone-300 bg-white px-5 pt-4 pb-8 font-sans shadow-[0_-8px_24px_rgba(0,0,0,0.08)] outline-none lg:inset-y-0 lg:right-0 lg:left-auto lg:max-h-none lg:w-[26rem] lg:border-t-0 lg:border-l lg:shadow-none dark:border-stone-700 dark:bg-stone-950"
+      className={PANEL_CLASS}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -272,6 +276,8 @@ export async function StudyPanel({
           Close
         </Link>
       </div>
+
+      {tabs}
 
       {actions}
 

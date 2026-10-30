@@ -51,6 +51,15 @@ export function deleteItemsTagged(prefix: string): Promise<void> {
   });
 }
 
+// Forgets Ask's saved answers and the day's count, so a run does not meet
+// the run before it.
+export function clearAsk(): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`delete from ask_answer`;
+    await sql`delete from ask_usage`;
+  });
+}
+
 export type StoredItem = {
   kind: string;
   title: string | null;

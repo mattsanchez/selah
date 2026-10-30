@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { SHARE_ALIKE_SOURCES } from "@/lib/ask/sources";
 import type { Translation } from "@/lib/bible/passage";
 import type { VerseRecord } from "@/lib/bible/types";
 
@@ -65,6 +66,7 @@ describe("entryHtml", () => {
       passage: card(),
       blocks: [],
       translations: [BSB],
+      shareAlike: [],
     };
     const html = entryHtml(entry, "https://selah.example.org");
     expect(html).toContain(
@@ -88,6 +90,7 @@ describe("entryHtml", () => {
         { type: "bad-card", source: "[[Nowhere 9]]", error: "No such book." },
       ],
       translations: [],
+      shareAlike: [],
     };
     const html = entryHtml(entry, "https://selah.example.org");
     expect(html).toContain(`<a href="https://selah.example.org/read/romans-8">Romans 8</a>`);
@@ -100,7 +103,7 @@ describe("entryHtml", () => {
 describe("a card's verses", () => {
   const html = (runs: VerseRecord[][], more = false) =>
     entryHtml(
-      { item: item({}), passage: card({ runs, more }), blocks: [], translations: [] },
+      { item: item({}), passage: card({ runs, more }), blocks: [], translations: [], shareAlike: [] },
       "https://selah.example.org",
     );
 
@@ -165,5 +168,25 @@ describe("quoteVerses", () => {
   it("quotes verses once", () => {
     expect(quoteVerses("For God so loved the world")).toBe("“For God so loved the world”");
     expect(quoteVerses("“Be still, and know that I am God.”")).toBe("“Be still, and know that I am God.”");
+  });
+});
+
+describe("entryHtml with a quoted note", () => {
+  const source = SHARE_ALIKE_SOURCES[0];
+
+  it("prints the notice of a share-alike source the post quotes, with its license and source", () => {
+    const html = entryHtml(
+      { item: item({ kind: "reflection" }), blocks: [{ type: "html", html: "<blockquote><p>A note</p></blockquote>" }], translations: [], shareAlike: [source] },
+      "https://example.org",
+    );
+    expect(html).toContain("CC BY-SA 4.0");
+    expect(html).toContain(`href="${source.licenseUrl}"`);
+    expect(html).toContain(`href="${source.sourceUrl}"`);
+    expect(html).toContain("The rest of this post is the author’s own");
+  });
+
+  it("prints no notice for a post without one", () => {
+    const html = entryHtml({ item: item({ kind: "reflection" }), blocks: [], translations: [], shareAlike: [] }, "https://example.org");
+    expect(html).not.toContain("CC BY-SA");
   });
 });

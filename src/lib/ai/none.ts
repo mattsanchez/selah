@@ -13,7 +13,11 @@ export const noneProvider: AiProvider = {
   enabled: false,
   embeddingModel: null,
   minSimilarity: 0,
+  answerModel: null,
   async complete() {
+    throw new AiDisabledError();
+  },
+  async *stream() {
     throw new AiDisabledError();
   },
   async embed() {
