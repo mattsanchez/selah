@@ -12,6 +12,7 @@ import type { VerseRange } from "@/lib/bible/verse-id";
 //   /read/john-3?v=john-3.16-18,20   ... with several: a highlight is made of them
 //   ...&add=1                    ... while a click adds or removes a verse
 //   ...&full=matthew-henry       ... and one source's entries printed in full
+//   ...?ask=1                    ... with the panel for asking about it (the owner's)
 //
 // The path segment is referenceSlug(); anything parseReference() reads works
 // in its place and redirects to the canonical slug.
@@ -56,12 +57,14 @@ export type ReaderState = {
   add?: boolean;
   // The commentary source the study panel prints in full.
   full?: string;
+  // The Ask panel is open.
+  ask?: boolean;
 };
 
 export function readerPath(
   ranges: readonly VerseRange[],
   t?: string,
-  { v = [], add, full }: ReaderState = {},
+  { v = [], add, full, ask }: ReaderState = {},
 ): string {
   // "," and ";" are legal in a path segment and in a query, and read better
   // left as they are.
@@ -70,6 +73,7 @@ export function readerPath(
     v.length > 0 && `v=${referenceSlug(v)}`,
     v.length > 0 && add && "add=1",
     v.length > 0 && full && `full=${encodeURIComponent(full)}`,
+    ask && "ask=1",
   ].filter(Boolean);
   const path = `/read/${referenceSlug(ranges)}`;
   return query.length > 0 ? `${path}?${query.join("&")}` : path;

@@ -75,7 +75,7 @@ export async function editorProps(db: Db, { item, kind, anchor, back }: EditorPa
         }
       : undefined;
 
-  const { embeddingModel } = await loadAiProvider();
+  const { embeddingModel, answerModel } = await loadAiProvider();
   const firstCard = parseDocument(markdown).find((segment) => segment.type === "card");
   const studyCookie = (await cookies()).get(STUDY_COOKIE)?.value;
   return {
@@ -86,6 +86,7 @@ export async function editorProps(db: Db, { item, kind, anchor, back }: EditorPa
     visibility: item?.visibility ?? "private",
     publishedAt: item?.publishedAt?.toISOString() ?? null,
     translations: translations.map(translationInfo),
+    ask: answerModel !== null,
     meaningTranslations: await embeddedTranslations(db, embeddingModel, translations.map(({ id }) => id)),
     passages,
     anchor: noteAnchor,

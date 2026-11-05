@@ -5,10 +5,12 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db/client";
 import { AI_KEY_NAMES, withAiKeys, type AiKeyName } from "@/lib/ai/keys";
 import { loadAiProvider } from "@/lib/ai/load";
+import { failureMessage } from "@/lib/ask/ask";
+import { clearAnswers } from "@/lib/ask/store";
 import { requireOwner } from "@/lib/auth/owner";
 import { listTranslations } from "@/lib/bible/passage";
 import { runEmbeddingJob } from "@/lib/embeddings/job";
-import { validateSite, type Errors, type SiteField } from "@/lib/settings/validate";
+import { parseDailyCap, validateSite, type Errors, type SiteField } from "@/lib/settings/validate";
 import { getSite, updateSite } from "@/lib/site";
 
 export type SettingsState = {
@@ -94,4 +96,46 @@ export async function startEmbeddingAction(): Promise<void> {
       .finally(resolve);
   });
   revalidatePath("/settings");
+}
+
+export type AskCapState = { error?: string; saved?: boolean };
+
+export async function saveAskCapAction(_: AskCapState, form: FormData): Promise<AskCapState> {
+  await requireOwner("/settings");
+  const value = form.get("dailyCap");
+  const parsed = parseDailyCap(typeof value === "string" ? value : "");
+  if ("error" in parsed) return parsed;
+  const site = await getSite();
+  if (!site) return { error: "This site has no settings yet. Run setup first." };
+  await updateSite(getDb(), {
+    title: site.title,
+    handle: site.handle,
+    defaultTranslationId: site.defaultTranslationId,
+    settings: { ...site.settings, ask: { ...site.settings.ask, dailyCap: parsed.cap } },
+  });
+  revalidatePath("/settings");
+  return { saved: true };
+}
+
+export async function clearAskAnswersAction(): Promise<void> {
+  await requireOwner("/settings");
+  await clearAnswers(getDb());
+  revalidatePath("/settings");
+}
+
+export type KeyTestState = { ok?: boolean; message?: string };
+
+// One very small call down the same path as a question: the same model, and
+// everything else a question asks of the API. Says what happened and nothing
+// about the key.
+export async function testAnthropicKeyAction(): Promise<KeyTestState> {
+  await requireOwner("/settings");
+  const provider = await loadAiProvider();
+  if (!provider.answerModel) return { ok: false, message: "There is no Anthropic key to test." };
+  try {
+    await provider.complete({ maxTokens: 16, messages: [{ role: "user", content: "Say OK." }] });
+    return { ok: true, message: "The key works." };
+  } catch (error) {
+    return { ok: false, message: failureMessage(error) };
+  }
 }

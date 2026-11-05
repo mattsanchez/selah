@@ -1,6 +1,7 @@
 import { layoutPassage, paragraphLines, type Inline } from "@/lib/bible/layout";
 
 import type { FeedEntry, PassageCardView } from "./feed";
+import { shareAlikeNotice } from "./share-alike";
 
 // An item as one string of HTML, for the RSS and Atom feeds: what
 // <FeedItem> (src/components/items/feed-item.tsx) shows, without the page
@@ -74,7 +75,7 @@ function cardHtml(card: PassageCardView, origin: string): string {
 }
 
 export function entryHtml(entry: FeedEntry, origin: string): string {
-  const { item, passage, blocks, translations } = entry;
+  const { item, passage, blocks, translations, shareAlike } = entry;
   const parts: string[] = [];
   if (passage) parts.push(cardHtml(passage, origin));
   if (item.kind === "highlight" && item.note) parts.push(`<p>${escapeHtml(item.note)}</p>`);
@@ -86,6 +87,11 @@ export function entryHtml(entry: FeedEntry, origin: string): string {
   for (const translation of translations) {
     parts.push(
       `<p><small>${escapeHtml(translation.attribution)} <a href="${escapeHtml(translation.sourceUrl)}">Source</a></small></p>`,
+    );
+  }
+  for (const source of shareAlike) {
+    parts.push(
+      `<p><small>${escapeHtml(shareAlikeNotice(source))} <a href="${escapeHtml(source.licenseUrl)}">License</a> <a href="${escapeHtml(source.sourceUrl)}">Source</a></small></p>`,
     );
   }
   return parts.join("\n");

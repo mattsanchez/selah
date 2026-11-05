@@ -159,7 +159,11 @@ The words of the notes are not changed.
 
 What share-alike covers: the notes as Selah stores and shows them are an adaptation of Tyndale's work, and are themselves offered under CC BY-SA 4.0. That includes the rows of `commentary_entry` for this source and the excerpt in the test fixture.
 Selah's code stays MIT: it reads and displays the notes and contains none of them.
-A writer's own reflections are their own. One that quotes a study note at length should credit it as above; one that reworks the notes into something new would be an adaptation, and CC BY-SA 4.0 would apply to it.
+A writer's own reflections are their own. One that reworks the notes into something new would be an adaptation, and CC BY-SA 4.0 would apply to it.
+
+Ask reads the notes (see [docs/ask.md](docs/ask.md)). Their text is sent to Anthropic as context, on the owner's key, and can appear in answers, in saved answers and in the cards of "What do commentators say". Every quote carries the attribution and a link to the license, added by the app and not by the model, and is shortened only with `[…]`, which is the change it indicates. The full wording above is listed with an answer's sources. In the short form on a quote, "Adapted from Tyndale Open Study Notes" links to the publisher's site.
+
+A quote inserted into a post stays a blockquote with its credit and license inside it. That quote is under CC BY-SA 4.0; the post around it is not. Every public rendering of such a post (its page, the feed, RSS and Atom) prints a notice saying so. Excerpts, descriptions and Open Graph images leave the quote out.
 
 ## Selah's mirror of these files
 
@@ -183,7 +187,7 @@ Nothing else is in it: no code, and nothing that is not public domain or openly 
 
 ## Embeddings
 
-Meaning search embeds the verses of public-domain translations (BSB, WEB, and optionally others stored locally) on each install, with the owner's own Voyage AI key. No embeddings of the full Bible are committed, mirrored or part of a data release. Commentary and Tyndale Open Study Notes are not embedded.
+Meaning search embeds the verses of public-domain translations (BSB, WEB, and optionally others stored locally) on each install, with the owner's own Voyage AI key. No embeddings of the full Bible are committed, mirrored or part of a data release. Commentary and Tyndale Open Study Notes are not embedded, except that a post is embedded with the words it quotes, on the same key.
 
 ## Fonts
 

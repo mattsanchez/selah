@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 
 import { expect, test as setup } from "@playwright/test";
 
-import { clearTestOwnerItems } from "./db";
+import { clearAsk, clearTestOwnerItems } from "./db";
 import { OWNER_STATE, TEST_OWNER } from "./owner";
 
 // Runs once before the journeys on the fixture server: makes sure the test
@@ -15,6 +15,7 @@ setup("seed the test owner and sign in", async ({ page }) => {
     stdio: "inherit",
   });
   await clearTestOwnerItems();
+  await clearAsk();
 
   await page.goto("/sign-in");
   await page.getByLabel("Email", { exact: true }).fill(TEST_OWNER.email);

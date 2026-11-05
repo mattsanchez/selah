@@ -16,7 +16,7 @@ import type { AiProvider } from "./types";
 export async function loadAiProvider(env = process.env, db?: Db): Promise<AiProvider> {
   // Decided by AI_PROVIDER alone: an unknown name throws here, as it should.
   const set = env.AI_PROVIDER?.trim().toLowerCase();
-  if (set && set !== "voyage") return getAiProvider(env);
+  if (set && !["voyage", "claude", "claude+voyage"].includes(set)) return getAiProvider(env);
   try {
     if (!db) return getAiProvider(env, await getAiKeys());
     const [row] = await db.select({ settings: site.settings }).from(site).where(eq(site.id, 1));

@@ -15,7 +15,7 @@ import { nearestWindows, passageVector } from "./passages";
 // Passages related to a passage: the windows nearest to it by vector, blended
 // with its cross references. The list M11's "Suggest related passages" starts from.
 
-export type RelatedSource = "meaning" | "cross-reference";
+export type RelatedSource = "meaning" | "cross-reference" | "keyword";
 
 export type RelatedPassage = VerseRange & {
   // "Romans 8:28-30".

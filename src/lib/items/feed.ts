@@ -3,12 +3,14 @@ import { getPassages, type Translation } from "@/lib/bible/passage";
 import { formatReference } from "@/lib/bible/reference";
 import type { VerseRecord } from "@/lib/bible/types";
 import type { VerseRange } from "@/lib/bible/verse-id";
+import type { ShareAlikeSource } from "@/lib/ask/sources";
 import { readerPath, translationParam } from "@/lib/reader-url";
 
 import { CARD_CHARS } from "./card-length";
 import { findTranslation, parseDocument } from "./cards";
 import { renderMarkdown } from "./markdown";
 import type { Item } from "./queries";
+import { shareAlikeQuotes } from "./share-alike";
 
 // Items made ready to print: what <FeedItem> (src/components/items) takes.
 // A highlight is its passage; a note is its passage, when it has one, and its
@@ -51,6 +53,8 @@ export type FeedEntry = {
   blocks: FeedBlock[];
   // The translations quoted, each once: their attributions are owed.
   translations: Translation[];
+  // The share-alike sources its Markdown quotes: their notices are owed.
+  shareAlike: ShareAlikeSource[];
 };
 
 type CardRequest = { ranges: VerseRange[]; translation?: Translation; view?: PassageCardView };
@@ -165,6 +169,7 @@ export async function loadFeedEntries(
       passage: anchor?.view,
       blocks: done,
       translations: translations.filter((translation) => quoted.has(translation)),
+      shareAlike: item.kind === "highlight" ? [] : shareAlikeQuotes(item.markdown),
     };
   });
 }

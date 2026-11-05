@@ -57,6 +57,17 @@ export function apiKeyError(key: string): string | undefined {
   }
 }
 
+export const MAX_DAILY_CAP = 10_000;
+
+// A daily cap on questions as typed, or what is wrong with it.
+export function parseDailyCap(typed: string): { cap: number } | { error: string } {
+  const cap = Number(typed.trim());
+  if (!typed.trim() || !Number.isInteger(cap) || cap < 1 || cap > MAX_DAILY_CAP) {
+    return { error: `Enter a whole number from 1 to ${MAX_DAILY_CAP.toLocaleString("en")}.` };
+  }
+  return { cap };
+}
+
 export type SiteInput = {
   title: string;
   handle: string;

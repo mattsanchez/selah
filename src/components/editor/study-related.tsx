@@ -17,6 +17,7 @@ const quiet =
 const SOURCE: Record<RelatedSource, string> = {
   meaning: "Close in meaning",
   "cross-reference": "Cross reference",
+  keyword: "Shares its words",
 };
 
 // A list of related passages, each insertable or opened to read around. The

@@ -5,6 +5,7 @@ import { editItemPath } from "@/lib/items-url";
 import { parseDocument } from "@/lib/items/cards";
 import { markdownExcerpt } from "@/lib/items/markdown";
 import type { Item } from "@/lib/items/queries";
+import { withoutShareAlikeQuotes } from "@/lib/items/share-alike";
 import { tagSlug } from "@/lib/items/tags";
 import { readerPath } from "@/lib/reader-url";
 
@@ -82,7 +83,7 @@ function bodyText(item: Pick<Item, "kind" | "markdown">): string {
           .flatMap((segment) => (segment.type === "markdown" ? [segment.text] : []))
           .join("\n\n")
       : item.markdown;
-  return markdownExcerpt(markdown, 1000);
+  return markdownExcerpt(withoutShareAlikeQuotes(markdown), 1000);
 }
 
 type Headed = Pick<Item, "kind" | "title" | "markdown" | "note" | "passages">;

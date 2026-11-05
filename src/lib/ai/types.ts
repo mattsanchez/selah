@@ -1,4 +1,6 @@
-export const AI_PROVIDER_NAMES = ["none", "stub", "voyage"] as const;
+// "claude+voyage" is one install with both keys: answers from Claude,
+// embeddings from Voyage.
+export const AI_PROVIDER_NAMES = ["none", "stub", "voyage", "claude", "claude+voyage"] as const;
 
 export type AiProviderName = (typeof AI_PROVIDER_NAMES)[number];
 
@@ -18,6 +20,10 @@ export type AiMessage = {
 export type AiCompletionRequest = {
   system?: string;
   messages: AiMessage[];
+  // "answer" is Q&A; "small" is for small tasks. See the pinned models in
+  // src/lib/ai/claude.ts.
+  tier?: "answer" | "small";
+  maxTokens?: number;
 };
 
 export type AiCompletion = {
@@ -36,7 +42,13 @@ export interface AiProvider {
   readonly embeddingModel: string | null;
   // Cosine similarity below which a vector is no match at all.
   readonly minSimilarity: number;
+  // The model that answers questions, or null when this provider cannot. An
+  // install has Ask when this is set. Part of every saved answer's key.
+  readonly answerModel: string | null;
   complete(request: AiCompletionRequest): Promise<AiCompletion>;
+  // The same as text as it is written. Rejects, or throws while iterating,
+  // when it cannot be finished.
+  stream(request: AiCompletionRequest): AsyncIterable<string>;
   // One unit-length vector per text, in order. Rejects when they cannot be
   // made; every caller treats that as having no embeddings.
   embed(texts: string[], options?: EmbedOptions): Promise<number[][]>;

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import Link from "next/link";
 
+import { PanelTabs, ReaderAskPanel } from "@/components/ask/reader-ask-panel";
 import { SelectionHighlights } from "@/components/highlights/selection-highlights";
 import { ParallelPassage, Passage } from "@/components/passage/passage";
 import { ReaderShell } from "@/components/reader/reader-shell";
@@ -10,6 +11,7 @@ import { TranslationPicker } from "@/components/reader/translation-picker";
 import { StudyPanel, type PanelFootnotes } from "@/components/study/study-panel";
 import { VerseSelect } from "@/components/study/verse-select";
 import { getDb } from "@/db/client";
+import { loadAiProvider } from "@/lib/ai/load";
 import { getOwner } from "@/lib/auth/owner";
 import { layoutParallel, layoutPassage } from "@/lib/bible/layout";
 import { getPassages, listTranslations } from "@/lib/bible/passage";
@@ -79,8 +81,12 @@ export default async function PassagePage({ params, searchParams }: Props) {
   // Highlights and everything for making them are the owner's alone.
   const owner = await getOwner();
   const add = owner !== null && selection.length > 0 && first(query.add) === "1";
+  // Ask spends the owner's key, so it is the owner's alone (the API checks
+  // again), and it needs a provider that can answer.
+  const canAsk = owner !== null && (await loadAiProvider()).answerModel !== null;
+  const ask = canAsk && first(query.ask) === "1";
   if (typed !== referenceSlug(ranges)) {
-    redirect(readerPath(ranges, canonicalT, { v: selection, add, full }));
+    redirect(readerPath(ranges, canonicalT, { v: selection, add, full, ask }));
   }
 
   const reference = formatReference(ranges);
@@ -140,8 +146,19 @@ export default async function PassagePage({ params, searchParams }: Props) {
           })),
       }
     : {};
+  const askHref = readerPath(ranges, canonicalT, { v: selection, ask: true });
   let panel;
-  if (verseId !== undefined) {
+  if (ask && columns.length > 0) {
+    panel = (
+      <ReaderAskPanel
+        reference={selection.length > 0 ? formatReference(selection) : reference}
+        translationId={columns[0].translation.id}
+        closeHref={readerPath(ranges, canonicalT)}
+        studyHref={selection.length > 0 ? readerPath(ranges, canonicalT, { v: selection }) : undefined}
+        askHref={askHref}
+      />
+    );
+  } else if (verseId !== undefined) {
     // What the owner has written on the selected verses.
     const written = owner
       ? (await itemsOnPassage(db, { ownerId: owner.id, ranges: selection })).filter(
@@ -171,6 +188,7 @@ export default async function PassagePage({ params, searchParams }: Props) {
         full={full}
         translation={columns[0].translation}
         footnotes={footnotes}
+        tabs={canAsk ? <PanelTabs current="study" study={readerPath(ranges, canonicalT, { v: selection })} ask={askHref} /> : undefined}
         actions={
           owner && (
             <SelectionHighlights
@@ -199,9 +217,16 @@ export default async function PassagePage({ params, searchParams }: Props) {
               selected={selectedIds}
               defaultId={defaultId}
               path={readerPath(ranges)}
-              keep={readerPath(ranges, undefined, { v: selection, add }).split("?")[1]}
+              keep={readerPath(ranges, undefined, { v: selection, add, ask }).split("?")[1]}
             />
           </div>
+        )}
+        {canAsk && !ask && columns.length > 0 && (
+          <p className="mt-3 font-sans text-sm">
+            <Link href={askHref} scroll={false} className="text-stone-600 underline underline-offset-4 hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100">
+              Ask about {selection.length > 0 ? "these verses" : "this passage"}
+            </Link>
+          </p>
         )}
       </div>
 
