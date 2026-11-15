@@ -10,7 +10,7 @@
 // Data releases are never changed once published: when a pin changes, publish
 // a new one (`pnpm data:release`) and name it here, so that older versions of
 // Selah keep finding the files their pins expect under the older tag.
-export const DATA_RELEASE = "data-v1";
+export const DATA_RELEASE = "data-v2";
 
 export const DATA_RELEASE_REPOSITORY = "mattsanchez/selah";
 

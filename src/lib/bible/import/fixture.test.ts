@@ -196,7 +196,7 @@ describe("Bible fixture", () => {
       (verse) => fixture.bsb.get(43_003_000 + verse)!.breaks,
     );
     expect(starts).toEqual([
-      [],
+      [{ offset: 0, kind: "paragraph" }],
       [],
       [{ offset: 0, kind: "paragraph" }],
       [{ offset: 0, kind: "paragraph" }],
@@ -212,8 +212,8 @@ describe("Bible fixture", () => {
     expect(verse.text.slice(0, 66)).toMatch(/He asked\.$/);
     expect(verse.text.slice(67)).toMatch(/^They said to Him,/);
 
-    expect(paragraphs("bsb", 43)).toHaveLength(496);
-    expect(paragraphs("bsb", 45)).toHaveLength(189);
+    expect(paragraphs("bsb", 43)).toHaveLength(518);
+    expect(paragraphs("bsb", 45)).toHaveLength(205);
   });
 
   it("has stanzas and line starts in the Psalms", () => {
@@ -234,12 +234,16 @@ describe("Bible fixture", () => {
     expect(paragraphs("web", 19).length).toBeGreaterThan(0);
   });
 
-  it("has the KJV's paragraphs where it prints a pilcrow", () => {
+  it("has the KJV's paragraphs where it prints a pilcrow or its source starts one", () => {
+    // John 3:16 has a pilcrow.
     expect(fixture.kjv.get(43_003_016)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
     expect(fixture.kjv.get(43_003_017)?.breaks).toEqual([]);
-    expect(paragraphs("kjv", 43)).toHaveLength(70);
-    // The KJV's paragraph marks stop at Acts 20.
-    expect(paragraphs("kjv", 45)).toEqual([]);
+    expect(paragraphs("kjv", 43)).toHaveLength(91);
+    // The printed pilcrows stop at Acts 20; the paragraphs of Romans are
+    // the ones eBible.org's edition marks, such as at 1:8 and 1:18.
+    expect(fixture.kjv.get(45_001_008)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
+    expect(fixture.kjv.get(45_001_018)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
+    expect(paragraphs("kjv", 45)).toHaveLength(40);
   });
 
   it("has the WEB's prose paragraphs, from its publisher's USFM", () => {
@@ -256,8 +260,8 @@ describe("Bible fixture", () => {
       [],
     ]);
     expect(fixture.web.get(45_001_008)?.breaks).toEqual([{ offset: 0, kind: "paragraph" }]);
-    expect(paragraphs("web", 43)).toHaveLength(370);
-    expect(paragraphs("web", 45)).toHaveLength(97);
+    expect(paragraphs("web", 43)).toHaveLength(371);
+    expect(paragraphs("web", 45)).toHaveLength(98);
   });
 
   it("starts the WEB's paragraphs inside a verse after a line break", () => {
@@ -279,7 +283,7 @@ describe("Bible fixture", () => {
 
     const inside = (book: number) =>
       inBook("web", book).flatMap((v) => v.breaks.filter((item) => item.offset > 0));
-    expect(inside(43)).toHaveLength(52);
+    expect(inside(43)).toHaveLength(53);
     expect(inside(45)).toHaveLength(1);
   });
 

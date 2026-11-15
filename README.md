@@ -65,7 +65,7 @@ So a copy of every file, exactly as it was when its checksum was pinned, is atta
 
 | Host | What |
 | :--- | :--- |
-| `github.com` | Selah's mirror: the data release this version was pinned against, <https://github.com/mattsanchez/selah/releases/tag/data-v1> |
+| `github.com` | Selah's mirror: the data release this version was pinned against, <https://github.com/mattsanchez/selah/releases/tag/data-v2> |
 | `release-assets.githubusercontent.com` | Where GitHub serves a release's files from; `github.com` redirects there |
 
 When the mirror cannot be reached, or a file is not in it, the file is downloaded from its publisher instead:
@@ -238,7 +238,7 @@ pnpm import:bible bsb      # or only the ones you name: bsb, web, kjv
 ```
 
 It applies pending migrations, downloads each translation into `.cache/bible/` (ignored by git), from Selah's [mirror](#data-releases) or else from the [Free Use Bible API](https://bible.helloao.org/), verifies it against the checksum pinned in `src/lib/bible/import/sources.ts`, and loads the `translation` and `verse` tables.
-Two translations need a second download, from their publishers, for formatting the API leaves out: the BSB's red-letter text (berean.bible) and the WEB's prose paragraphs (ebible.org).
+Two translations need a second download, from their publishers, for formatting the API has left out: the BSB's red-letter text (berean.bible) and the WEB's prose paragraphs (ebible.org; the API's WEB has had them too since November 2026, and the second file fills any it lacks).
 These are pinned and verified the same way, and only their formatting is used: the words of every verse come from the first file. [DATA-LICENSES.md](DATA-LICENSES.md) says how the two are matched and what is left out.
 It is safe to re-run: a second run reuses the cached files and changes nothing.
 

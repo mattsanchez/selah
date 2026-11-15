@@ -4,7 +4,7 @@ Selah's code is MIT licensed ([LICENSE](LICENSE)).
 The Bible texts, cross references, commentaries and study notes it imports are not covered by that license; each keeps its own terms, listed here.
 Every one is public domain or openly licensed. Each row of the `translation` and `commentary_source` tables carries its license and attribution so the app can show them wherever the content appears.
 
-The licenses below were read from each publisher's own page on 2026-10-12.
+The licenses below were read from each publisher's own page on 2026-10-12, and those of the three translations again on 2026-11-15, unchanged.
 
 ## Bible translations
 
@@ -63,7 +63,7 @@ Each file is pinned by a checksum in `src/lib/bible/import/sources.ts`, and the 
 
 ### Formatting from the publishers' own files
 
-The API's files leave out two things the publishers' files have, so the import also downloads one file from each of two publishers, for formatting only:
+The API's files have left out two things the publishers' files have, so the import also downloads one file from each of two publishers, for formatting only:
 
 | Translation | File | Publisher's page | What is read from it |
 | :--- | :--- | :--- | :--- |
@@ -71,9 +71,11 @@ The API's files leave out two things the publishers' files have, so the import a
 | WEB | <https://ebible.org/Scriptures/engwebp_usfm.zip> | <https://ebible.org/Scriptures/details.php?id=engwebp> | Where prose paragraphs start |
 
 No words are taken from these files.
-They are different builds of the same translations, and their wording differs from the API's in about a hundred verses each, so the import lays a mark onto a verse only when the two texts are the same character for character apart from spacing and line breaks.
+They are different builds of the same translations, and their wording differs from the API's (with the files pinned today, in 87 BSB verses and 10 WEB verses), so the import lays a mark onto a verse only when the two texts are the same character for character apart from spacing and line breaks.
 A verse where they differ keeps the formatting it had, and the import prints every such verse.
-With the files pinned today that is 23 of the 7,759 WEB verses where a paragraph starts, and one of the 2,047 BSB verses with words of Jesus.
+With the files pinned today that is 4 of the 7,759 WEB verses where a paragraph starts (Joshua 3:14, 2 Kings 5:14, Matthew 23:37 and Luke 13:34), and one of the 2,047 BSB verses with words of Jesus.
+
+The API's WEB had only the stanzas of its poetry until its build of November 2026, which also has the prose paragraphs. The import still lays the USFM's paragraphs onto it; with the files pinned today they are all there already, and none is added.
 
 For red-letter text the import allows two differences in punctuation, because neither leaves the place of a span in doubt; it prints these verses too:
 
@@ -82,10 +84,10 @@ For red-letter text the import allows two differences in punctuation, because ne
 
 The one BSB verse left without red-letter text is John 6:42, where the span ends on a closing quotation mark that the two files put on either side of the question mark.
 
-745 of the WEB's paragraphs start in the middle of a verse, such as at a change of speaker. They are stored, and each changes the text by one character: see below.
+821 of the WEB's paragraphs start in the middle of a verse, such as at a change of speaker. They are stored, after a line break in the text: see below.
 
 Both files are pinned by a checksum in the same way, over the words and marks the import reads from them.
-The KJV has no second file: its paragraph marks stop at Acts 20 in the printed text itself.
+The KJV has no second file. Its paragraphs start where the text prints a paragraph mark (¶), and where the API's file starts one: since its build of November 2026 that file has the paragraphs of eBible.org's edition, which go on past Acts 20, where the printed marks stop.
 
 ## What the import changes
 
@@ -93,7 +95,7 @@ The words of each translation are stored as published. The import changes only t
 
 - Formatting is reduced to plain text, with a line break between lines. Paragraph and stanza breaks, and the marking of the words of Jesus, are stored beside the text as positions in it, where the sources have them. The indent of each line of poetry is not kept.
 - KJV: the paragraph mark (¶) at the start of a verse is taken out of the text and stored as a paragraph break. Also removed is the chapter-and-verse prefix of each footnote ("3.3 for: or, about" becomes "for: or, about").
-- WEB: where a paragraph starts in the middle of a verse, the space before it is stored as a line break, because a paragraph break inside a verse is stored as a position that follows a line break. This is 745 spaces in 682 verses. No word or punctuation mark changes: replacing every line break in the text with a space gives the text as it was.
+- WEB: where the USFM starts a paragraph in the middle of a verse and the API's file has a space there, the space is stored as a line break, because a paragraph break inside a verse is stored as a position that follows a line break. No word or punctuation mark changes: replacing every line break in the text with a space gives the text as it was. With the files pinned today the API's file has a line break at every one of these places already, so no space is changed.
 - WEB: the closing doxology of Romans, which the WEB prints as Romans 14:24-26, is stored under Romans 16:25-27, where the KJV and BSB have it, so that one verse id means the same words in every translation. The WEB's footnotes there explain the two placements.
 - WEB: four verses the WEB leaves empty except for a footnote (Luke 17:36, Acts 8:37, Acts 15:34 and Acts 24:7), and its empty Romans 16:25, are not stored as verses; each footnote is kept on the verse before.
 
@@ -167,11 +169,11 @@ A quote inserted into a post stays a blockquote with its credit and license insi
 
 ## Selah's mirror of these files
 
-The publishers' addresses are not versioned, so Selah keeps a copy of every file named above, exactly as it was downloaded, as an asset of a GitHub release of this repository used only for data: <https://github.com/mattsanchez/selah/releases/tag/data-v1>.
+The publishers' addresses are not versioned, so Selah keeps a copy of every file named above, exactly as it was downloaded, as an asset of a GitHub release of this repository used only for data: <https://github.com/mattsanchez/selah/releases/tag/data-v2> for this version (earlier versions use <https://github.com/mattsanchez/selah/releases/tag/data-v1>).
 The imports download from there first and from the publisher second, and check either copy against the same pinned checksum.
 The README's [Data releases](README.md#data-releases) section says how a release is made.
 
-Each file is redistributed unmodified, under the terms above, which were read again on 2026-10-13 before the first release was published:
+Each file is redistributed unmodified, under the terms above, which were read again on 2026-10-13 before the first release was published, and for the three translations and the Free Use Bible API on 2026-11-15 before `data-v2`:
 
 | File | From | Terms it is mirrored under |
 | :--- | :--- | :--- |
