@@ -25,6 +25,7 @@ import {
   validateNotePost,
   type ContentField,
 } from "@/lib/items/validate";
+import { findUncredited, type UncreditedMatch } from "@/lib/items/uncredited";
 import type { Errors } from "@/lib/settings/validate";
 
 // Writing reflections and notes, and sharing items of every kind. Each action
@@ -228,6 +229,32 @@ export async function publishItemAction(input: {
     visibility,
     publishedAt: now?.publishedAt?.toISOString() ?? null,
   };
+}
+
+export type UncreditedResult =
+  // `checked` is false when the notes are not in the database to compare.
+  | { ok: true; checked: boolean; matches: UncreditedMatch[] }
+  | { ok: false };
+
+// Whether a saved reflection or note has words of a share-alike source's
+// notes outside a quote that credits it (src/lib/items/uncredited.ts). The
+// editor asks before publishing and after saving a published post, and only
+// warns: nothing here changes the post or stops it being published. It reads
+// what is saved, which is what the public site prints. A failure answers
+// `ok: false`, and the editor carries on as if it had found nothing.
+export async function checkUncreditedAction(input: { id: string }): Promise<UncreditedResult> {
+  const owner = await requireOwner();
+  const id = input?.id;
+  if (typeof id !== "string" || !UUID.test(id)) return { ok: false };
+  try {
+    const db = getDb();
+    const item = await getItem(db, { ownerId: owner.id, id });
+    if (!item || item.kind === "highlight") return { ok: false };
+    return { ok: true, ...(await findUncredited(db, item.markdown)) };
+  } catch (error) {
+    console.error("Could not check the post for uncredited quotations", error);
+    return { ok: false };
+  }
 }
 
 // "Share" and "Unshare" on a highlight, "Publish" and "Unpublish" on a

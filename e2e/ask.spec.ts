@@ -368,8 +368,10 @@ test.describe("a quote in a post", () => {
 
     // Published: the notice on the page and in the feeds, and the note's
     // words in no excerpt.
+    // Its words are credited, so publishing asks nothing.
     await publish(page, "Public");
     await expect(page.locator("[data-publish-state]")).toHaveAttribute("data-publish-state", /public/i);
+    await expect(page.locator("[data-uncredited]")).toHaveCount(0);
     await page.goto("/");
     await page.locator(`[data-feed-item='${id}']`).getByRole("link", { name: "A quote kept whole" }).click();
     await expect(page).toHaveURL(/\/p\//);
@@ -417,6 +419,104 @@ test.describe("a quote in a post", () => {
     await page.keyboard.type("Reworded, my own.");
     await expect(status).toHaveText("Saved");
     expect((await storedItem(id))!.markdown).toBe(markdown.replace("> As the Tyndale Open Study Notes say somewhere, a quotation of my own.", "> Reworded, my own."));
+    await deleteItemsTagged(TAG);
+  });
+});
+
+test.describe("a note's words without its credit", () => {
+  test.use({ storageState: OWNER_STATE });
+
+  // A sentence of the fixture's Tyndale note on John 3:16, as a writer might
+  // paste it from the study panel.
+  const COPIED =
+    "The truth that God loved the world is basic to Christian understanding (1 Jn 4:9-10). God’s love extends beyond the limits of race and nation.";
+
+  test("are warned about before publishing and after, and publishing goes on when the owner says so", async ({ page }) => {
+    const TAG = "uncredited-words";
+    await deleteItemsTagged(TAG);
+    await page.goto("/write");
+    const { title, body, status, publishButton } = editor(page);
+    await title.fill("Words copied from a note");
+    await writeAtEnd(body, `My own first thought. ${COPIED}`);
+    await setTags(page, TAG);
+    await expect(status).toHaveText("Saved");
+    const id = editorId(page);
+    const stored = (await storedItem(id))!.markdown;
+
+    // Publish: the menu says what it found, and nothing is published yet.
+    await publishButton.click();
+    const menu = page.getByRole("dialog");
+    await menu.getByRole("radio", { name: /^Public/ }).check();
+    await menu.getByRole("button", { name: "Publish now" }).click();
+    const warning = menu.locator("[data-uncredited]");
+    await expect(warning).toContainText("This post has words from Tyndale Open Study Notes without its credit");
+    await expect(warning.locator("[data-uncredited-match='John 3:16']")).toContainText(
+      "The truth that God loved the world is basic to Christian understanding",
+    );
+    await expect(warning.getByRole("link", { name: "John 3:16" })).toHaveAttribute("href", "/read/john-3.16?v=john-3.16&full=tyndale");
+    await expect(warning.getByRole("link", { name: "CC BY-SA 4.0" })).toHaveAttribute("href", "https://creativecommons.org/licenses/by-sa/4.0/");
+    await expect(warning).toContainText("does not notice paraphrase");
+    expect((await storedItem(id))!.visibility).toBe("private");
+
+    // Keep editing closes it and changes nothing.
+    await menu.getByRole("button", { name: "Keep editing" }).click();
+    await expect(menu).toHaveCount(0);
+    await expect(publishButton).toHaveAttribute("data-publish-state", "private");
+
+    // Asked again, the owner publishes anyway; the post is not touched.
+    await publishButton.click();
+    await menu.getByRole("radio", { name: /^Public/ }).check();
+    await menu.getByRole("button", { name: "Publish now" }).click();
+    await menu.getByRole("button", { name: "Publish anyway" }).click();
+    await expect(publishButton).toHaveAttribute("data-publish-state", "public");
+    const published = (await storedItem(id))!;
+    expect(published.visibility).toBe("public");
+    expect(published.markdown).toBe(stored);
+    // Already set aside here: no banner over the post.
+    await writeAtEnd(body, " More.");
+    await expect(status).toHaveText("Saved");
+    await page.waitForTimeout(2500);
+    await expect(page.locator("[data-uncredited]")).toHaveCount(0);
+
+    // Opened again, the published post says so above the text, without
+    // stopping anything; an Update warns too, and setting it aside there
+    // sets the banner aside as well.
+    await page.reload();
+    const banner = page.getByRole("status").filter({ has: page.locator("[data-uncredited]") });
+    await expect(banner).toContainText("This published post has words from Tyndale Open Study Notes without its credit");
+    await writeAtEnd(body, " Still mine.");
+    await expect(status).toHaveText("Saved");
+    await publishButton.click();
+    await menu.getByRole("radio", { name: /^Unlisted/ }).check();
+    await menu.getByRole("button", { name: "Update" }).click();
+    await menu.getByRole("button", { name: "Update anyway" }).click();
+    await expect(publishButton).toHaveAttribute("data-publish-state", "unlisted");
+    await expect(banner).toHaveCount(0);
+
+    // Dismissed, it stays away until other words are copied in.
+    await page.reload();
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "Dismiss" }).click();
+    await expect(banner).toHaveCount(0);
+    expect((await storedItem(id))!.markdown).toBe(`${stored} More. Still mine.`);
+
+    await deleteItemsTagged(TAG);
+  });
+
+  test("short or common phrases from a note publish with no warning", async ({ page }) => {
+    const TAG = "uncredited-short";
+    await deleteItemsTagged(TAG);
+    await page.goto("/write");
+    const { title, body, status, publishButton } = editor(page);
+    await title.fill("A few words in common");
+    // Eleven words of the note, and phrases every writer uses.
+    await writeAtEnd(body, "The truth that God loved the world is basic to Christian faith, I think. Jesus is the light of the world.");
+    await setTags(page, TAG);
+    await expect(status).toHaveText("Saved");
+    await publish(page, "Public");
+    await expect(publishButton).toHaveAttribute("data-publish-state", "public");
+    await page.waitForTimeout(2500);
+    await expect(page.locator("[data-uncredited]")).toHaveCount(0);
     await deleteItemsTagged(TAG);
   });
 });
