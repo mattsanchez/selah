@@ -5,7 +5,6 @@ import { editItemPath } from "@/lib/items-url";
 import { parseDocument } from "@/lib/items/cards";
 import { markdownExcerpt } from "@/lib/items/markdown";
 import type { Item } from "@/lib/items/queries";
-import { withoutShareAlikeQuotes } from "@/lib/items/share-alike";
 import { tagSlug } from "@/lib/items/tags";
 import { readerPath } from "@/lib/reader-url";
 
@@ -74,7 +73,9 @@ function shortSlug(text: string): string {
   return end > 0 ? cut.slice(0, end) : slug.slice(0, SLUG_LENGTH);
 }
 
-// The words of a reflection or a note without its passage cards.
+// The words of a reflection or a note without its passage cards and without
+// any blockquote: an excerpt has no room for what a quote is owed, and a quote
+// whose credit was edited away must not surface in one.
 function bodyText(item: Pick<Item, "kind" | "markdown">): string {
   if (!item.markdown) return "";
   const markdown =
@@ -83,7 +84,7 @@ function bodyText(item: Pick<Item, "kind" | "markdown">): string {
           .flatMap((segment) => (segment.type === "markdown" ? [segment.text] : []))
           .join("\n\n")
       : item.markdown;
-  return markdownExcerpt(withoutShareAlikeQuotes(markdown), 1000);
+  return markdownExcerpt(markdown, 1000, { quotes: false });
 }
 
 type Headed = Pick<Item, "kind" | "title" | "markdown" | "note" | "passages">;

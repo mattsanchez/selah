@@ -4,11 +4,15 @@ import { markdownExcerpt, renderMarkdown } from "./markdown";
 
 describe("renderMarkdown", () => {
   it("renders CommonMark", () => {
-    expect(renderMarkdown("# Grace\n\nBy *grace* you have been **saved**.")).toBe(
+    expect(
+      renderMarkdown("# Grace\n\nBy *grace* you have been **saved**."),
+    ).toBe(
       "<h1>Grace</h1>\n<p>By <em>grace</em> you have been <strong>saved</strong>.</p>",
     );
     expect(renderMarkdown("- one\n- two")).toContain("<li>one</li>");
-    expect(renderMarkdown("[the reader](/read/john-3) and <https://example.org>")).toBe(
+    expect(
+      renderMarkdown("[the reader](/read/john-3) and <https://example.org>"),
+    ).toBe(
       '<p><a href="/read/john-3">the reader</a> and <a href="https://example.org">https://example.org</a></p>',
     );
   });
@@ -48,7 +52,9 @@ describe("renderMarkdown", () => {
   });
 
   it("cannot be broken out of an attribute", () => {
-    const html = renderMarkdown('[x](https://example.org/"onmouseover="alert(1)) ![a"b](/i.png "t\\"x")');
+    const html = renderMarkdown(
+      '[x](https://example.org/"onmouseover="alert(1)) ![a"b](/i.png "t\\"x")',
+    );
     expect(html).not.toMatch(/"\s*onmouseover=/);
     expect(html).toContain('alt="a&quot;b"');
     expect(html).toContain('title="t&quot;x"');
@@ -57,20 +63,44 @@ describe("renderMarkdown", () => {
 
 describe("markdownExcerpt", () => {
   it("is the words alone, on one line", () => {
-    expect(markdownExcerpt("# Grace\n\nBy *grace* you have\nbeen [saved](/x) & kept.")).toBe(
-      "Grace By grace you have been saved & kept.",
-    );
+    expect(
+      markdownExcerpt(
+        "# Grace\n\nBy *grace* you have\nbeen [saved](/x) & kept.",
+      ),
+    ).toBe("Grace By grace you have been saved & kept.");
     expect(markdownExcerpt("")).toBe("");
   });
 
   it("keeps a word whole across inline markup, and parts blocks", () => {
-    expect(markdownExcerpt("weak through the **flesh**. Then\n\n- one\n- two")).toBe(
-      "weak through the flesh. Then one two",
-    );
+    expect(
+      markdownExcerpt("weak through the **flesh**. Then\n\n- one\n- two"),
+    ).toBe("weak through the flesh. Then one two");
   });
 
   it("is cut at a word", () => {
     expect(markdownExcerpt("one two three four", 10)).toBe("one two…");
     expect(markdownExcerpt("groaning, adoption, hope", 18)).toBe("groaning…");
+  });
+});
+
+describe("markdownExcerpt without quotes", () => {
+  const without = (markdown: string) =>
+    markdownExcerpt(markdown, 160, { quotes: false });
+
+  it("keeps everything around a blockquote and drops the quote", () => {
+    expect(without("Before.\n\n> quoted\n\nAfter.")).toBe("Before. After.");
+    expect(markdownExcerpt("Before.\n\n> quoted\n\nAfter.")).toBe(
+      "Before. quoted After.",
+    );
+  });
+
+  it("drops nested, multiline and lazily continued quotes whole", () => {
+    expect(without("a\n\n> b\n> > c\n> d\n\ne")).toBe("a e");
+    expect(without("a\n\n> b\nlazy\n\ne")).toBe("a e");
+    expect(without("a\n\n> b\n\n> c\n\ne")).toBe("a e");
+  });
+
+  it("returns nothing for a post that is only a quote", () => {
+    expect(without("> only\n>\n> > this")).toBe("");
   });
 });

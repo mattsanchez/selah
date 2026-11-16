@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { docToMarkdown, markdownToDoc, type EditorDoc } from "@/lib/items/editor-document";
 import { renderMarkdown } from "@/lib/items/markdown";
-import { shareAlikeNotice, shareAlikeQuotes, withoutShareAlikeQuotes } from "@/lib/items/share-alike";
+import { shareAlikeNotice, shareAlikeQuotes } from "@/lib/items/share-alike";
 import { COMMENTARY_SOURCES } from "@/lib/study/sources";
 
 import { pickQuote } from "./commentators";
@@ -163,14 +163,5 @@ describe("the detector", () => {
     expect(shareAlikeQuotes("I read the Tyndale Open Study Notes today.")).toEqual([]);
     expect(shareAlikeQuotes(null)).toEqual([]);
     expect(shareAlikeQuotes("")).toEqual([]);
-  });
-
-  it("takes the quote out of what an excerpt reads", () => {
-    const left = withoutShareAlikeQuotes(markdown);
-    expect(left).toContain("My own words.");
-    expect(left).toContain("More of my own.");
-    expect(left).not.toContain("God’s love");
-    expect(left).not.toContain("Tyndale");
-    expect(withoutShareAlikeQuotes(docToMarkdown(postWith(henry)))).toContain("Love is the source");
   });
 });

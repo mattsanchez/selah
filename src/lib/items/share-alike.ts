@@ -25,15 +25,6 @@ export function shareAlikeQuotes(markdown: string | null | undefined): ShareAlik
   return SHARE_ALIKE_SOURCES.filter((source) => quotes.some((block) => quoting(block.lines, source.name)));
 }
 
-// The Markdown without those quotes: for excerpts, which have no room for
-// what is owed to them.
-export function withoutShareAlikeQuotes(markdown: string): string {
-  return quoteBlocks(markdown)
-    .filter((block) => !block.quote || !SHARE_ALIKE_SOURCES.some((source) => quoting(block.lines, source.name)))
-    .flatMap((block) => block.lines)
-    .join("\n");
-}
-
 // What is printed with such a post, in one sentence.
 export const shareAlikeNotice = (source: ShareAlikeSource) =>
   `Quoted from ${source.name}, ${source.credit}, licensed ${source.license}. The rest of this post is the author’s own and is not under that license.`;
