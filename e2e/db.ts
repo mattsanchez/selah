@@ -147,3 +147,38 @@ export async function createOwnerItem(
     await client.end();
   }
 }
+
+// Saves an item's text as the editor in another tab or on another device
+// would: a save of its own (a new `save_token`), which this page's editor
+// does not build on.
+export function saveElsewhere(id: string, markdown: string): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`
+      update item set markdown = ${markdown}, save_token = gen_random_uuid()::text, updated_at = now()
+      where id = ${id}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}
+
+// Dates an item's making long ago, so it sorts after everything else in
+// lists that are newest first: for a journey's items that other journeys,
+// running alongside, look for on the first page of "My items".
+export function backdateItem(id: string): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`
+      update item set created_at = '2000-01-01T00:00:00Z'
+      where id = ${id}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}
+
+// Deletes these of the test owner's items.
+export function deleteOwnerItems(ids: readonly string[]): Promise<void> {
+  return withDb(async (sql) => {
+    if (ids.length === 0) return;
+    await sql`
+      delete from item
+      where id in ${sql(ids)}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}

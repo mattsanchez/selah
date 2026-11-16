@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { containsPattern, overlapsPassage, publishedAtFor, taggedWith } from "./queries";
+import { containsPattern, followsSaves, overlapsPassage, publishedAtFor, taggedWith } from "./queries";
 
 const toQuery = (ranges: { start: number; end: number }[]) =>
   new PgDialect().sqlToQuery(overlapsPassage(ranges));
@@ -87,5 +87,25 @@ describe("containsPattern", () => {
     expect(containsPattern("living water")).toBe("%living water%");
     expect(containsPattern("100% sure_ish")).toBe("%100\\% sure\\_ish%");
     expect(containsPattern("back\\slash")).toBe("%back\\\\slash%");
+  });
+});
+
+describe("followsSaves", () => {
+  const toSql = (after: (string | null)[]) => new PgDialect().sqlToQuery(followsSaves(after));
+
+  it("matches the item whose text one of these saves wrote", () => {
+    const { sql, params } = toSql(["a", "b"]);
+    expect(sql).toBe(`"item"."save_token" in ($1, $2)`);
+    expect(params).toEqual(["a", "b"]);
+  });
+
+  it("matches text no editor save wrote only when asked, as SQL's = never matches null", () => {
+    expect(toSql([null]).sql).toBe(`"item"."save_token" is null`);
+    expect(toSql(["a", null]).sql).toBe(`("item"."save_token" in ($1) or "item"."save_token" is null)`);
+    expect(toSql(["a"]).sql).not.toContain("is null");
+  });
+
+  it("matches nothing for no saves", () => {
+    expect(toSql([]).sql).toBe("false");
   });
 });

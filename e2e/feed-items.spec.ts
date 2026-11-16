@@ -23,6 +23,18 @@ const BLUE_ACCENT = "rgb(59, 130, 246)";
 // An item of the feed, by something it says.
 const feedItem = (page: Page, kind: string, text: string) =>
   page.locator(`[data-feed-item][data-kind='${kind}']`).filter({ hasText: text });
+// How many items of "My items", unfiltered, say this: on every page. A page
+// past the last is sent back to the last, which ends the count.
+async function countInMyItems(page: Page, kind: string, text: string): Promise<number> {
+  let count = 0;
+  for (let n = 1; n <= 50; n++) {
+    const path = n === 1 ? "/items" : `/items?page=${n}`;
+    await page.goto(path);
+    if (new URL(page.url()).pathname + new URL(page.url()).search !== path) break;
+    count += await feedItem(page, kind, text).count();
+  }
+  return count;
+}
 const highlightCard = (page: Page, reference: string) =>
   page
     .locator("[data-highlight-item]")
@@ -136,8 +148,8 @@ test.describe("the signed-in owner", () => {
     await writeAtEnd(post.body, " Typed a moment before the reload.");
     await page.reload();
     await expect(post.body).toContainText("Typed a moment before the reload.");
-    // The status is "Saved" from the page's first paint, before the restored
-    // text has been saved: what counts is the stored text.
+    // What counts is the stored text; the status shows the restored text as
+    // unsaved until then (e2e/autosave.spec.ts).
     await expect
       .poll(async () => (await storedItem(reflectionId))!.markdown)
       .toMatch(/Typed a moment before the reload\.$/);
@@ -258,10 +270,16 @@ test.describe("the signed-in owner", () => {
       publishedAt: null,
       passages: [],
     });
-    // All three kinds in one list.
-    await expect(shared).toHaveCount(1);
-    await expect(feedItem(page, "reflection", "Abide")).toHaveCount(1);
-    await expect(still).toHaveCount(1);
+    // All three kinds in one list, once each: "My items", newest first, on
+    // whichever of its pages (the journeys running alongside add items of
+    // their own, which can push this one's first ones past the first page).
+    for (const [kind, text] of [
+      ["highlight", "Not ashamed"],
+      ["reflection", "Abide"],
+      ["note", "Stillness is not idleness."],
+    ]) {
+      expect(await countInMyItems(page, kind, text)).toBe(1);
+    }
 
     // --- A visitor who is not signed in reaches none of it ---
     const visitor = await browser.newContext({ storageState: { cookies: [], origins: [] } });

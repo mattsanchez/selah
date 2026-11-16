@@ -58,7 +58,7 @@ beforeEach(() => {
   ]);
   mocks.createItem.mockResolvedValue(ITEM);
   mocks.getItem.mockResolvedValue({ id: ITEM, kind: "reflection", updatedAt: SAVED, publishedAt: null });
-  mocks.saveItemContent.mockResolvedValue(SAVED);
+  mocks.saveItemContent.mockResolvedValue({ ok: true, savedAt: SAVED });
   mocks.setVisibility.mockResolvedValue(true);
   mocks.deleteItem.mockResolvedValue(true);
 });
@@ -208,6 +208,7 @@ describe("the owner", () => {
           { start: 43003016, end: 43003017, translationId: "kjv" },
         ],
       },
+      undefined,
     );
   });
 
@@ -234,6 +235,58 @@ describe("the owner", () => {
     expect(await saveItemAction({ id: ITEM } as never)).toMatchObject({ ok: false });
     expect(await saveItemAction(null as never)).toMatchObject({ ok: false });
     expect(mocks.saveItemContent).not.toHaveBeenCalled();
+  });
+
+  it("saves only over the saves it builds on, and says when another got there first", async () => {
+    const mine = "11111111-1111-4111-8111-111111111111";
+    const before = "22222222-2222-4222-8222-222222222222";
+    const theirs = "33333333-3333-4333-8333-333333333333";
+    await saveItemAction(draft({ markdown: "Mine.", token: mine, after: [before, null] }));
+    expect(mocks.saveItemContent.mock.calls[0][3]).toEqual({ token: mine, after: [before, null] });
+
+    mocks.saveItemContent.mockResolvedValueOnce({ ok: false, conflict: true, token: theirs });
+    expect(await saveItemAction(draft({ markdown: "Mine.", token: mine, after: [before] }))).toEqual({
+      ok: false,
+      conflict: true,
+      token: theirs,
+      formError: expect.stringMatching(/changed in another tab or on another device/),
+    });
+
+    mocks.saveItemContent.mockResolvedValueOnce({ ok: false });
+    expect(await saveItemAction(draft({ token: mine, after: [before] }))).toMatchObject({
+      ok: false,
+      formError: /no longer exists/,
+    });
+  });
+
+  it("saves whatever is there for a caller that names no saves, as before save tokens", async () => {
+    await saveItemAction(draft({ markdown: "From an editor loaded before the update." }));
+    expect(mocks.saveItemContent.mock.calls[0][3]).toBeUndefined();
+  });
+
+  it("refuses a save whose tokens are not the editor's", async () => {
+    const token = "11111111-1111-4111-8111-111111111111";
+    for (const bad of [
+      { token: "not a token", after: [null] },
+      { token, after: [] },
+      { token, after: ["x"] },
+      { token, after: "x" },
+      { token },
+      { after: [null] },
+      { token, after: Array(33).fill(null) },
+    ]) {
+      expect(await saveItemAction(draft(bad))).toMatchObject({ ok: false });
+    }
+    expect(mocks.saveItemContent).not.toHaveBeenCalled();
+  });
+
+  it("makes a new post with its first save's token", async () => {
+    const token = "11111111-1111-4111-8111-111111111111";
+    await createDraftAction({ kind: "reflection", title: "", markdown: "First.", tags: "", token });
+    expect(mocks.createItem.mock.calls[0][1]).toMatchObject({ saveToken: token });
+    expect(
+      await createDraftAction({ kind: "reflection", title: "", markdown: "First.", tags: "", token: "x" }),
+    ).toMatchObject({ ok: false });
   });
 
   it("is told what is wrong with what was typed, and it is not saved", async () => {
