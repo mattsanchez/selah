@@ -56,7 +56,7 @@ export const BIBLE_SOURCES: readonly BibleSource[] = [
       "Berean Standard Bible (BSB), public domain since April 30, 2023. berean.bible",
     sourceUrl: "https://berean.bible/",
     downloadUrl: "https://bible.helloao.org/api/BSB/complete.json",
-    contentSha256: "a997d84c4cdcb3a8a450c45a88f8d4690d2d77b2d2902926cb6faa8f7c8a5c4c",
+    contentSha256: "c3db8113131e2a5e659d152350d056f1f968cf4b297970a1bc0b924949e76a9e",
     // The API's BSB has no red-letter markup; the publisher's USFM has.
     formatting: {
       kind: "wordsOfJesus",
@@ -74,14 +74,15 @@ export const BIBLE_SOURCES: readonly BibleSource[] = [
       "World English Bible (WEB), public domain. “World English Bible” is a trademark of eBible.org.",
     sourceUrl: "https://ebible.org/Scriptures/details.php?id=engwebp",
     downloadUrl: "https://bible.helloao.org/api/ENGWEBP/complete.json",
-    contentSha256: "503b9b9bb9d4e98c63cbf1eb9bb67b5f7d507978bb0de866a00e46b7337a8395",
-    // The API's WEB has the stanzas of its poetry but not its prose
-    // paragraphs; the publisher's USFM has.
+    contentSha256: "8c59a5801883a248eed6b1660af984a5617a2280644743b77a5e3baca2789720",
+    // The API's WEB had the stanzas of its poetry but not its prose
+    // paragraphs until its November 2026 build; the publisher's USFM has
+    // them, and fills any the API's file lacks.
     formatting: {
       kind: "paragraphs",
       sourceUrl: "https://ebible.org/Scriptures/details.php?id=engwebp",
       downloadUrl: "https://ebible.org/Scriptures/engwebp_usfm.zip",
-      contentSha256: "aa658a77a7d817d9be297a29e4937a4617af960adccb1df93c555abb8de57abf",
+      contentSha256: "792fcf780a9914ef4899f260ab3f0bfda30334944a32be8bbcfa462d7110a3f1",
     },
   },
   {
@@ -93,7 +94,7 @@ export const BIBLE_SOURCES: readonly BibleSource[] = [
       "King James (Authorized) Version, 1769 text. Public domain outside the United Kingdom, where it is under Crown patent.",
     sourceUrl: "https://ebible.org/Scriptures/details.php?id=eng-kjv2006",
     downloadUrl: "https://bible.helloao.org/api/eng_kjv/complete.json",
-    contentSha256: "bd95ed6510371f7fb59fd4b6beeae5804730344fef4e2307912a8bba3d73bf32",
+    contentSha256: "35ba3fba766c59bc326c0c6bb610f6edc6b89f3b78a14f0928e66c0403dd204e",
     stripFootnoteOrigin: true,
     pilcrowParagraphs: true,
   },
