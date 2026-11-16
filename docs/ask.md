@@ -140,7 +140,7 @@ A source with `shareAlike` in that table has a license that travels with its wor
 
 - That is plain CommonMark, so it needs no storage format of its own and survives the editor's round trip.
 - `shareAlikeQuotes()` finds a blockquote naming the source in stored Markdown, with no column. `loadFeedEntries()` passes the result to `<FeedItem>` and `entryHtml()`, so the permalink, the feed and RSS/Atom print the notice.
-- `withoutShareAlikeQuotes()` takes the quote out of excerpts, descriptions and Open Graph images, which have no room for what is owed to it.
+- Excerpts, descriptions, Open Graph images and the name of an untitled note leave out every blockquote (`markdownExcerpt(…, { quotes: false })` in `bodyText`), not only ones that name a source: the notice depends on the credit staying in the quote, and an excerpt has no room for it. So a quote whose credit was deleted or reworded, or that was split from it, still stays out. The post's full content is untouched. A post that is only quotes gets the generic name ("Note", "Reflection" or its passage) and no description.
 
 The owner's own writing is not relicensed: only the quoted note is under CC BY-SA 4.0. Text reworked from a note, rather than quoted, is an adaptation and is under that license too.
 

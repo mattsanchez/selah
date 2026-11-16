@@ -13,11 +13,40 @@ export function renderMarkdown(markdown: string): string {
   return micromark(markdown);
 }
 
+// The rendered HTML without its blockquotes. Written HTML is escaped by
+// renderMarkdown, so every "<blockquote" here is a real one.
+function withoutBlockquotes(html: string): string {
+  let depth = 0;
+  let out = "";
+  let last = 0;
+  for (const tag of html.matchAll(/<(\/?)blockquote\b[^>]*>/g)) {
+    if (depth === 0) out += html.slice(last, tag.index);
+    depth = Math.max(0, depth + (tag[1] ? -1 : 1));
+    last = tag.index + tag[0].length;
+  }
+  return depth === 0 ? out + html.slice(last) : out;
+}
+
 // The words alone, on one line, cut to about `limit` characters: for lists.
-export function markdownExcerpt(markdown: string, limit = 160): string {
+//
+// `quotes: false` leaves every blockquote out, however deep, long or lazily
+// continued: the HTML is cut where CommonMark itself says a quote begins and
+// ends, so no line-level guess can leak a quote's words.
+export function markdownExcerpt(
+  markdown: string,
+  limit = 160,
+  { quotes = true } = {},
+): string {
   // A block ends a word; an inline tag ("<strong>") does not.
-  const html = renderMarkdown(markdown)
-    .replace(/<\/?(?:p|h[1-6]|li|ul|ol|blockquote|pre|br|hr|table|tr|td|th)\b[^>]*>/g, " ")
+  const html = (
+    quotes
+      ? renderMarkdown(markdown)
+      : withoutBlockquotes(renderMarkdown(markdown))
+  )
+    .replace(
+      /<\/?(?:p|h[1-6]|li|ul|ol|blockquote|pre|br|hr|table|tr|td|th)\b[^>]*>/g,
+      " ",
+    )
     .replace(/<[^>]+>/g, "");
   const text = decodeEntities(html).replace(/\s+/g, " ").trim();
   if (text.length <= limit) return text;
