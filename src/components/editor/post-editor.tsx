@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { Attribution, PassageQuote } from "@/components/passage/passage";
 import type { VerseRange } from "@/lib/bible/verse-id";
-import { quoteNode } from "@/lib/ask/quote";
 import { linkHref } from "@/lib/editor/links";
 import { STUDY_COOKIE, type PassageData, type TranslationInfo } from "@/lib/editor/types";
 import { docToMarkdown, markdownToDoc, type EditorNode } from "@/lib/items/editor-document";
@@ -20,10 +19,11 @@ import type { ItemVisibility } from "@/lib/items/queries";
 import { MAX_ITEM_TITLE_LENGTH, MAX_NOTE_BODY_LENGTH } from "@/lib/items/validate";
 
 import { slashItems, type BlockContext } from "./blocks";
-import { PassageNode, PostDocument, QuoteCommands } from "./passage-node";
+import { NoteDocument, PassageNode, PostDocument } from "./passage-node";
 import { primePassages } from "./passages";
 import { PublishMenu } from "./publish-menu";
 import { SettingsMenu } from "./settings-menu";
+import { SourceQuoteNode } from "./source-quote-node";
 import { SlashCommands, SlashMenu, useSlashMenu } from "./slash-menu";
 import { StudySidebar, type ReadRequest, type StudyBridge } from "./study-sidebar";
 import { InsertButton, SelectionToolbar } from "./toolbar";
@@ -202,10 +202,10 @@ export function PostEditor(props: PostEditorProps) {
       lookUp: (query) => study.current.openRead(query),
     };
     return [
-      ...(reflection ? [PostDocument, PassageNode.configure({ translations })] : []),
-      QuoteCommands,
+      ...(reflection ? [PostDocument, PassageNode.configure({ translations })] : [NoteDocument]),
+      SourceQuoteNode,
       StarterKit.configure({
-        document: reflection ? false : undefined,
+        document: false,
         // Markdown has no way to write these.
         strike: false,
         underline: false,
@@ -334,7 +334,7 @@ export function PostEditor(props: PostEditorProps) {
     },
     insertQuote: (quote) => {
       if (!editor) return;
-      editor.chain().focus().insertQuote(quoteNode(quote)).run();
+      editor.chain().focus().insertQuote(quote).run();
       if (narrow) setSheetOpen(false);
     },
     insertLink: (text, href) => {

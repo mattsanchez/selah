@@ -320,6 +320,13 @@
       @apply opacity-100;
     }
   }
+  /* A quote from Ask in the post: its words in the post's type, as printed. */
+  .post-prose .source-quote-block blockquote {
+    @apply font-serif text-stone-700 italic dark:text-stone-300;
+  }
+  .source-quote-block blockquote p + p {
+    @apply mt-4;
+  }
   .passage-block-status {
     @apply animate-pulse py-4 text-sm text-stone-500 dark:text-stone-400;
   }

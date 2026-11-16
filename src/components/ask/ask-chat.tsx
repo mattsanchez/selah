@@ -7,7 +7,7 @@ import type { AskEvent } from "@/lib/ask/ask";
 import { applyEvent, answerText, emptyAnswer, type Answer, type AnswerSegment, type SectionId } from "@/lib/ask/answer";
 import type { AskSources } from "@/lib/ask/context";
 import type { Turn } from "@/lib/ask/prompt";
-import { quoteCredit, type SourceQuote } from "@/lib/ask/quote";
+import { quoteCredit, type QuotedWords, type SourceQuote } from "@/lib/ask/quote";
 import { CROSS_REFERENCES } from "@/lib/study/sources";
 
 // A short conversation about one passage. It lives in this browser tab, per
@@ -67,7 +67,7 @@ function write(key: string, turns: readonly TurnView[]) {
 const LinkTarget = createContext<"_blank" | undefined>(undefined);
 
 // A credit line's text and links, as printed under a quote.
-export function Credit({ quote, newTab }: { quote: SourceQuote; newTab?: boolean }) {
+export function Credit({ quote, newTab }: { quote: QuotedWords; newTab?: boolean }) {
   const inherited = useContext(LinkTarget);
   const target = newTab ? "_blank" : inherited;
   return (

@@ -15,6 +15,8 @@ import type {
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toMarkdown } from "mdast-util-to-markdown";
 
+import { checkedQuote, quoteNode, readSourceQuote, SOURCE_QUOTE, sourceQuoteNode } from "@/lib/ask/quote";
+
 import { parseDocument } from "./cards";
 
 // What the rich editor (src/components/editor) edits, and how it becomes the
@@ -34,6 +36,13 @@ import { parseDocument } from "./cards";
 // trip is exact: docToMarkdown(markdownToDoc(docToMarkdown(doc))) is
 // docToMarkdown(doc), and markdownToDoc(docToMarkdown(doc)) is `doc` with
 // its empty paragraphs gone (Markdown has no empty paragraph).
+//
+// A quote inserted from Ask is one block in the editor, `sourceQuote`, and is
+// stored as the plain blockquote it has always been (quoteNode in
+// src/lib/ask/quote.ts). A blockquote at the top of a post that is exactly
+// such a quote, words and the app's credit unchanged, opens as that block
+// again (readSourceQuote); every other blockquote opens as a blockquote. So a
+// post saved before the block existed is stored again byte for byte.
 //
 // Markdown written in the M8 text area may hold what the editor has no block
 // for. It opens as the closest thing that prints the same: raw HTML (which
@@ -259,6 +268,12 @@ function block(node: RootContent, definitions: Definitions): EditorNode[] {
   }
 }
 
+// A blockquote that is a quote inserted from Ask, as the editor's block.
+function upgradeQuote(node: EditorNode): EditorNode {
+  const quote = readSourceQuote(node);
+  return quote ? sourceQuoteNode(quote) : node;
+}
+
 function collectDefinitions(tree: Nodes, into: Definitions) {
   if (tree.type === "definition") {
     if (!into.has(tree.identifier)) into.set(tree.identifier, tree);
@@ -299,7 +314,7 @@ export function markdownToDoc(markdown: string, { passages = true }: DocOptions 
             } satisfies PassageAttrs,
           },
         ]
-      : blocks(trees[i]!.children, definitions),
+      : blocks(trees[i]!.children, definitions).map(upgradeQuote),
   );
   return { type: "doc", content: content.length > 0 ? content : [{ type: "paragraph" }] };
 }
@@ -406,6 +421,11 @@ function toMdast(node: EditorNode): RootContent[] {
           ],
         },
       ];
+    }
+    case SOURCE_QUOTE: {
+      // Written from its attributes, never from text the writer could edit.
+      const quote = checkedQuote(node.attrs?.quote);
+      return quote ? toMdast(quoteNode(quote)) : [];
     }
     case "blockquote": {
       const children = (node.content ?? []).flatMap(toMdast);

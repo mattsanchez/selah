@@ -165,7 +165,9 @@ A writer's own reflections are their own. One that reworks the notes into someth
 
 Ask reads the notes (see [docs/ask.md](docs/ask.md)). Their text is sent to Anthropic as context, on the owner's key, and can appear in answers, in saved answers and in the cards of "What do commentators say". Every quote carries the attribution and a link to the license, added by the app and not by the model, and is shortened only with `[…]`, which is the change it indicates. The full wording above is listed with an answer's sources. In the short form on a quote, "Adapted from Tyndale Open Study Notes" links to the publisher's site.
 
-A quote inserted into a post stays a blockquote with its credit and license inside it. That quote is under CC BY-SA 4.0; the post around it is not. Every public rendering of such a post (its page, the feed, RSS and Atom) prints a notice saying so. Excerpts, descriptions, Open Graph images and the names of untitled notes leave out every blockquote, whether or not its credit is still there.
+A quote inserted into a post is stored as a blockquote with its credit and license inside it. That quote is under CC BY-SA 4.0; the post around it is not. In the editor the quote is one block whose words and credit the app writes: the writer can move it or delete it whole, but cannot edit or remove its credit or take the words out of the quote. While a post holds such a quote, every public rendering of it (its page, the home, tag and passage feeds, RSS and Atom) prints a notice saying so. Excerpts, descriptions, Open Graph images and the names of untitled notes leave out every blockquote, whether or not its credit is still there.
+
+That notice is found from the quote's credit in the stored post. Words of the notes put into a post without inserting them (pasted from the study panel or an answer, for instance) carry no credit, so that post prints no notice for them; nothing checks posts for such words. Such words stay out of excerpts only when they sit in a blockquote. The footer of every public page still names the notes and their license.
 
 ## Selah's mirror of these files
 

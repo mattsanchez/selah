@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { deleteItemsTagged, storedItem } from "./db";
+import { createOwnerItem, deleteItemsTagged, storedItem } from "./db";
 import { editor, editorId, publish, setTags, writeAtEnd } from "./editor";
 import { OWNER_STATE } from "./owner";
 
@@ -177,7 +177,7 @@ test.describe("the owner", () => {
     await panel.getByRole("textbox", { name: "Passage" }).fill("John 3:21");
 
     const blocks = page.locator("[data-passage-block]");
-    const quotes = body.locator(":scope > blockquote");
+    const quotes = body.locator("[data-source-quote]");
 
     // Suggest: a list, and no change to the post until Insert.
     await panel.getByRole("button", { name: "Suggest related passages" }).click();
@@ -200,6 +200,8 @@ test.describe("the owner", () => {
     await expect(quotes).toHaveCount(1);
     await expect(quotes).toContainText("Tyndale Open Study Notes");
     await expect(quotes.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
+    // Insert puts the cursor back in the post (a frame later).
+    await expect(body).toBeFocused();
 
     // An answer stays in the sidebar: its words have no way into the post.
     await ask(panel, question("What does judgment mean here?"));
@@ -214,6 +216,7 @@ test.describe("the owner", () => {
     // One quote and one cited passage, each on its own click.
     await turn.getByRole("button", { name: /Insert the quote from Matthew Henry/ }).click();
     await expect(quotes).toHaveCount(2);
+    await expect(body).toBeFocused();
     await turn.getByRole("button", { name: "Insert John 3:21" }).click();
     await expect(passage("John 3:21")).toBeVisible();
     await expect(body).not.toContainText("canned test answer");
@@ -254,6 +257,170 @@ test.describe("the owner", () => {
   });
 });
 
+// The credit of an inserted quote, as the app writes it in the stored Markdown.
+const TYNDALE_CREDIT =
+  /^> — Adapted from \[Tyndale Open Study Notes\]\(https:\/\/tyndaleopenresources\.com\/\) \(Protestant evangelical tradition\) on \[John 3:[0-9-]+\]\(\/read\/john-3\.[0-9.-]+\), © 2022 Tyndale House Publishers, \[CC BY-SA 4\.0\]\(https:\/\/creativecommons\.org\/licenses\/by-sa\/4\.0\/\)\. This quoted note is under that license; the rest of this post is not\.$/m;
+
+test.describe("a quote in a post", () => {
+  test.use({ storageState: OWNER_STATE });
+
+  test("keeps its credit while the post is edited, and the published post its notice", async ({ page }) => {
+    const TAG = "quote-credit";
+    await deleteItemsTagged(TAG);
+    await page.goto("/write");
+    const { sidebar, title, body, status } = editor(page);
+    await title.fill("A quote kept whole");
+    await writeAtEnd(body, "My own first thought.");
+    await setTags(page, TAG);
+
+    await sidebar.getByRole("tab", { name: "Ask" }).click();
+    const panel = sidebar.getByRole("tabpanel", { name: "Ask" });
+    await panel.getByRole("textbox", { name: "Passage" }).fill("John 3:21");
+    await panel.getByRole("button", { name: "What do commentators say" }).click();
+    await panel.getByRole("button", { name: /Insert the quote from Tyndale/ }).click();
+
+    const quote = body.locator("[data-source-quote='tyndale']");
+    const credit = quote.locator("[data-quote-credit]");
+    await expect(quote).toHaveCount(1);
+    await expect(credit.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
+    // Nothing of it can be typed in: words and credit are the app's.
+    await expect(quote.locator("[contenteditable='false']")).toHaveCount(1);
+    await expect(body.locator(":scope > blockquote")).toHaveCount(0);
+    const words = (await quote.locator("blockquote").innerText()).trim().slice(0, 30);
+    expect(words.length).toBeGreaterThan(10);
+    // The cursor is in the paragraph after it.
+    await expect(body).toBeFocused();
+    await page.keyboard.type("My closing words.");
+
+    // Either the quote is there with its whole credit, or none of it is.
+    const wholeOrGone = async () => {
+      const text = await body.innerText();
+      expect(text.includes(words)).toBe(text.includes("Tyndale Open Study Notes"));
+      expect(text.includes(words)).toBe(text.includes("CC BY-SA 4.0"));
+    };
+    const undo = () => page.keyboard.press("ControlOrMeta+z");
+    // The post's blocks, in order: "quote" for the quote, the text of the others.
+    const order = () =>
+      body.evaluate((element) =>
+        [...element.children].map((child) => (child.querySelector("[data-source-quote]") ? "quote" : (child.textContent ?? ""))),
+      );
+
+    // Deleting the credit takes the quote, whole; Undo brings it back.
+    await credit.click({ clickCount: 3 });
+    await page.keyboard.press("Backspace");
+    await wholeOrGone();
+    await expect(quote).toHaveCount(0);
+    await undo();
+    await expect(quote).toHaveCount(1);
+    await expect(credit.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
+
+    // Turning Quote on or off over the whole post cannot lift the words out.
+    await body.click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.getByRole("toolbar", { name: "Format" }).getByRole("button", { name: "Quote" }).click();
+    await expect(quote).toHaveCount(1);
+    await expect(body.locator(":scope > blockquote, li")).toHaveCount(0);
+    expect(await order()).toEqual(["My own first thought.", "quote", "My closing words."]);
+    await wholeOrGone();
+
+    // Enter on the quote adds a line after it; it does not split it.
+    await quote.locator("blockquote").click();
+    await page.keyboard.press("Enter");
+    await page.keyboard.type("Between.");
+    await expect(quote).toHaveCount(1);
+    expect(await order()).toEqual(["My own first thought.", "quote", "Between.", "My closing words."]);
+
+    // It moves whole, and its Remove can be undone.
+    const tools = page.getByRole("toolbar", { name: /^Quote from Tyndale Open Study Notes/ });
+    await quote.hover();
+    await tools.getByRole("button", { name: "Move up" }).click();
+    await expect.poll(order).toEqual(["quote", "My own first thought.", "Between.", "My closing words."]);
+    await quote.hover();
+    await tools.getByRole("button", { name: "Move down" }).click();
+    await expect.poll(order).toEqual(["My own first thought.", "quote", "Between.", "My closing words."]);
+    await quote.hover();
+    await tools.getByRole("button", { name: "Remove quote" }).click();
+    await expect(quote).toHaveCount(0);
+    await wholeOrGone();
+    await undo();
+    await expect(quote).toHaveCount(1);
+
+    // Stored as the blockquote it always was, credit last.
+    await expect(status).toHaveText("Saved");
+    const id = editorId(page);
+    const saved = (await storedItem(id))!.markdown!;
+    expect(saved).toMatch(TYNDALE_CREDIT);
+    expect(saved.split("\n\n")).toEqual([
+      "My own first thought.",
+      expect.stringMatching(/^> [\s\S]*\n>\n> — Adapted from /),
+      "Between.",
+      "My closing words.",
+    ]);
+
+    // Opened again it is the same block, and saving changes no byte.
+    await page.reload();
+    await expect(quote).toHaveCount(1);
+    await expect(body.locator(":scope > blockquote")).toHaveCount(0);
+    await writeAtEnd(body, "!");
+    await page.keyboard.press("Backspace");
+    await expect(status).toHaveText("Saved");
+    expect((await storedItem(id))!.markdown).toBe(saved);
+
+    // Published: the notice on the page and in the feeds, and the note's
+    // words in no excerpt.
+    await publish(page, "Public");
+    await expect(page.locator("[data-publish-state]")).toHaveAttribute("data-publish-state", /public/i);
+    await page.goto("/");
+    await page.locator(`[data-feed-item='${id}']`).getByRole("link", { name: "A quote kept whole" }).click();
+    await expect(page).toHaveURL(/\/p\//);
+    await expect(page.locator("[data-share-alike='tyndale']")).toContainText("licensed CC BY-SA 4.0");
+    await expect(page.locator("main blockquote").first()).toContainText(words);
+    for (const meta of ["meta[name='description']", "meta[property='og:description']"]) {
+      const content = (await page.locator(meta).getAttribute("content")) ?? "";
+      expect(content).toContain("My own first thought.");
+      expect(content).not.toContain(words);
+    }
+    const rss = await (await page.request.get("/rss.xml")).text();
+    expect(rss).toContain("licensed CC BY-SA 4.0");
+
+    await deleteItemsTagged(TAG);
+  });
+
+  test("a post saved before quotes were one block opens with its quote whole, and ordinary quotes stay editable", async ({ page }) => {
+    const credit =
+      "— Adapted from [Tyndale Open Study Notes](https://tyndaleopenresources.com/) (Protestant evangelical tradition) on [John 3:16](/read/john-3.16), © 2022 Tyndale House Publishers, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). This quoted note is under that license; the rest of this post is not.";
+    const markdown = [
+      "My own words.",
+      `> The truth that God loved the world is basic to Christian understanding. \\[…]\n>\n> ${credit}`,
+      "> As the Tyndale Open Study Notes say somewhere, a quotation of my own.",
+      "More of my own.",
+    ].join("\n\n");
+    const TAG = "quote-credit-older";
+    await deleteItemsTagged(TAG);
+    const id = await createOwnerItem({
+      kind: "reflection",
+      title: "An older post with a quote",
+      markdown,
+      passages: [],
+      tags: [{ slug: TAG, name: TAG }],
+    });
+    await page.goto(`/items/${id}/edit`);
+    const { body, status } = editor(page);
+    await expect(body.locator("[data-source-quote='tyndale']")).toContainText("God loved the world");
+    await expect(body.locator("[data-source-quote='tyndale'] [data-quote-credit]")).toContainText("CC BY-SA 4.0");
+    // The writer's own quotation is an ordinary, editable blockquote.
+    const own = body.locator(":scope > blockquote");
+    await expect(own).toHaveText("As the Tyndale Open Study Notes say somewhere, a quotation of my own.");
+
+    // A triple click selects its paragraph.
+    await own.click({ clickCount: 3 });
+    await page.keyboard.type("Reworded, my own.");
+    await expect(status).toHaveText("Saved");
+    expect((await storedItem(id))!.markdown).toBe(markdown.replace("> As the Tyndale Open Study Notes say somewhere, a quotation of my own.", "> Reworded, my own."));
+    await deleteItemsTagged(TAG);
+  });
+});
+
 test.describe("in a note", () => {
   test.use({ storageState: OWNER_STATE });
 
@@ -266,7 +433,9 @@ test.describe("in a note", () => {
     await panel.getByRole("textbox", { name: "Passage" }).fill("John 3:21");
     await panel.getByRole("button", { name: "What do commentators say" }).click();
     await panel.getByRole("button", { name: /Insert the quote from Tyndale/ }).click();
-    await expect(note.locator(":scope > blockquote")).toContainText("Tyndale Open Study Notes");
+    const quote = note.locator("[data-source-quote='tyndale']");
+    await expect(quote).toContainText("Tyndale Open Study Notes");
+    await expect(quote.getByRole("link", { name: "CC BY-SA 4.0" })).toBeVisible();
   });
 });
 
