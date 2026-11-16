@@ -23,12 +23,14 @@ const BLUE_ACCENT = "rgb(59, 130, 246)";
 // An item of the feed, by something it says.
 const feedItem = (page: Page, kind: string, text: string) =>
   page.locator(`[data-feed-item][data-kind='${kind}']`).filter({ hasText: text });
-// How many items of "My items", unfiltered, say this: on every page.
+// How many items of "My items", unfiltered, say this: on every page. A page
+// past the last is sent back to the last, which ends the count.
 async function countInMyItems(page: Page, kind: string, text: string): Promise<number> {
   let count = 0;
-  for (let n = 1; n <= 20; n++) {
-    await page.goto(n === 1 ? "/items" : `/items?page=${n}`);
-    if ((await page.locator("[data-feed-item]").count()) === 0) break;
+  for (let n = 1; n <= 50; n++) {
+    const path = n === 1 ? "/items" : `/items?page=${n}`;
+    await page.goto(path);
+    if (new URL(page.url()).pathname + new URL(page.url()).search !== path) break;
     count += await feedItem(page, kind, text).count();
   }
   return count;
