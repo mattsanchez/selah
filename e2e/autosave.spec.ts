@@ -1,6 +1,6 @@
 import { expect, test, type Page, type Request, type Route } from "@playwright/test";
 
-import { createOwnerItem, saveElsewhere, storedItem } from "./db";
+import { backdateItem, createOwnerItem, deleteOwnerItems, saveElsewhere, storedItem } from "./db";
 import { editor, publish, writeAtEnd } from "./editor";
 import { OWNER_STATE } from "./owner";
 
@@ -13,6 +13,13 @@ import { OWNER_STATE } from "./owner";
 
 test.use({ storageState: OWNER_STATE });
 
+// The posts these tests write, made long ago and deleted after each test, so
+// they never push another journey's items off the first page of "My items".
+const made: string[] = [];
+test.afterEach(async () => {
+  await deleteOwnerItems(made.splice(0));
+});
+
 const isSave = (request: Request) =>
   request.method() === "POST" &&
   !!request.headers()["next-action"] &&
@@ -20,6 +27,8 @@ const isSave = (request: Request) =>
 
 async function openReflection(page: Page, markdown: string) {
   const id = await createOwnerItem({ kind: "reflection", title: "Autosave", markdown, passages: [] });
+  made.push(id);
+  await backdateItem(id);
   await page.goto(`/items/${id}/edit`);
   const post = editor(page);
   await expect(post.body).toContainText(markdown);

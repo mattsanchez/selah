@@ -159,3 +159,26 @@ export function saveElsewhere(id: string, markdown: string): Promise<void> {
         and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
   });
 }
+
+// Dates an item's making long ago, so it sorts after everything else in
+// lists that are newest first: for a journey's items that other journeys,
+// running alongside, look for on the first page of "My items".
+export function backdateItem(id: string): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`
+      update item set created_at = '2000-01-01T00:00:00Z'
+      where id = ${id}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}
+
+// Deletes these of the test owner's items.
+export function deleteOwnerItems(ids: readonly string[]): Promise<void> {
+  return withDb(async (sql) => {
+    if (ids.length === 0) return;
+    await sql`
+      delete from item
+      where id in ${sql(ids)}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}
