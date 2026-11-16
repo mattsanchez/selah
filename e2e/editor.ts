@@ -14,10 +14,21 @@ export const editor = (page: Page) => ({
   passage: (reference: string) => page.locator(`[data-passage-block='${reference}']`),
 });
 
-// The cursor at the end of the text: a click in the space below it.
+// The cursor at the end of the text. The editor is focused with a click in
+// the space below the text, as a writer would, and the caret is then put at
+// the end of the document by its selection: where that click lands depends on
+// the editor's height at that moment, which moves while a post grows.
 export async function writeAtEnd(body: Locator, text: string) {
   const box = (await body.boundingBox())!;
   await body.click({ position: { x: 4, y: box.height - 4 } });
+  await body.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    range.collapse(false);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
   await body.pressSequentially(text);
 }
 

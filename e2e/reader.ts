@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 // Finding and clicking verses in the reader, for the journeys that select
 // them.
@@ -31,4 +31,14 @@ export async function clickVerse(page: Page, id: number, modifier?: "Shift" | "C
   if (modifier) await page.keyboard.down(modifier);
   await page.mouse.click(x, y);
   if (modifier) await page.keyboard.up(modifier);
+}
+
+// Selects a run of verses as a reader does: a click on the first, then a
+// shift-click on the last. The shift-click waits for the first click to have
+// taken (the page has hydrated and marked the verse), as a person would see it
+// before reaching for Shift; a click before that is a plain click on the page.
+export async function selectVerses(page: Page, first: number, last: number) {
+  await clickVerse(page, first);
+  await expect(verse(page, first)).toHaveAttribute("data-selected");
+  await clickVerse(page, last, "Shift");
 }

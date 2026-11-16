@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { setItemMarkdown, storedItem } from "./db";
 import { editor, editorId, publish, setTags, writeAtEnd } from "./editor";
 import { OWNER_STATE } from "./owner";
-import { clickVerse, panel, verse } from "./reader";
+import { clickVerse, panel, selectVerses, verse } from "./reader";
 
 // Journey 7: share to the feed. From a highlight, "Share" publishes it as a
 // feed item (passage card, color accent, note). From the reader, "Reflect"
@@ -37,8 +37,7 @@ test.describe("the signed-in owner", () => {
   }) => {
     // --- Share a highlight ---
     await page.goto("/read/romans-1.16-17");
-    await clickVerse(page, 45001016);
-    await clickVerse(page, 45001017, "Shift");
+    await selectVerses(page, 45001016, 45001017);
     await expect(page).toHaveURL("/read/romans-1.16-17?v=romans-1.16-17");
     const newHighlight = panel(page).getByRole("group", { name: /^Highlight / });
     await newHighlight.locator("label.highlight-choice").filter({ hasText: "Blue" }).click();
@@ -94,8 +93,7 @@ test.describe("the signed-in owner", () => {
 
     // --- Reflect on a selected passage ---
     await page.goto("/read/john-15.4-5");
-    await clickVerse(page, 43015004);
-    await clickVerse(page, 43015005, "Shift");
+    await selectVerses(page, 43015004, 43015005);
     await expect(page).toHaveURL("/read/john-15.4-5?v=john-15.4-5");
     await panel(page).getByRole("button", { name: "Reflect on John 15:4-5" }).click();
     await expect(page).toHaveURL(/\/items\/[0-9a-f-]{36}\/edit$/);
@@ -138,8 +136,12 @@ test.describe("the signed-in owner", () => {
     await writeAtEnd(post.body, " Typed a moment before the reload.");
     await page.reload();
     await expect(post.body).toContainText("Typed a moment before the reload.");
+    // The status is "Saved" from the page's first paint, before the restored
+    // text has been saved: what counts is the stored text.
+    await expect
+      .poll(async () => (await storedItem(reflectionId))!.markdown)
+      .toMatch(/Typed a moment before the reload\.$/);
     await expect(post.status).toHaveText("Saved");
-    expect((await storedItem(reflectionId))!.markdown).toMatch(/Typed a moment before the reload\.$/);
 
     // A second passage, in another translation, from the "/" menu: the
     // passages follow the document.
