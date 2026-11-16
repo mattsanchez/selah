@@ -10,12 +10,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 
+import { checkUncreditedAction } from "@/app/items/actions";
 import { Attribution, PassageQuote } from "@/components/passage/passage";
 import type { VerseRange } from "@/lib/bible/verse-id";
 import { linkHref } from "@/lib/editor/links";
 import { STUDY_COOKIE, type PassageData, type TranslationInfo } from "@/lib/editor/types";
 import { docToMarkdown, markdownToDoc, type EditorNode } from "@/lib/items/editor-document";
 import type { ItemVisibility } from "@/lib/items/queries";
+import type { UncreditedMatch } from "@/lib/items/uncredited";
 import { MAX_ITEM_TITLE_LENGTH, MAX_NOTE_BODY_LENGTH } from "@/lib/items/validate";
 
 import { slashItems, type BlockContext } from "./blocks";
@@ -27,6 +29,7 @@ import { SourceQuoteNode } from "./source-quote-node";
 import { SlashCommands, SlashMenu, useSlashMenu } from "./slash-menu";
 import { StudySidebar, type ReadRequest, type StudyBridge } from "./study-sidebar";
 import { InsertButton, SelectionToolbar } from "./toolbar";
+import { UncreditedNotice, matchKey, unacknowledged } from "./uncredited-notice";
 import { useAutosave, type SaveStatus, type Values } from "./use-autosave";
 
 // The editor of reflections and notes: the page is the post. A centred
@@ -76,6 +79,9 @@ const STATUS: Record<SaveStatus, string> = {
   failed: "Not saved",
   conflict: "Not saved",
 };
+
+// How long after a published post is saved its words are looked at.
+const UNCREDITED_CHECK_DELAY_MS = 1500;
 
 // A phone, or anything too narrow for the sidebar beside the post.
 const NARROW = "(max-width: 1023px)";
@@ -156,6 +162,39 @@ export function PostEditor(props: PostEditorProps) {
     ),
   });
   const { status, failure, change, flush, keepMine, useSaved } = autosave;
+
+  // --- Words of a share-alike source's notes without its credit ---
+  // Looked for in what is saved, before publishing (PublishMenu) and after
+  // each save of a published post, whose words are already public. Only a
+  // warning: the owner may set it aside (`acknowledged`, for as long as the
+  // post is open here) and nothing in the post is changed. The save itself
+  // is untouched; this reads it after.
+  const [uncredited, setUncredited] = useState<UncreditedMatch[]>([]);
+  const [acknowledged, setAcknowledged] = useState<ReadonlySet<string>>(new Set());
+  const acknowledge = useCallback(
+    (matches: readonly UncreditedMatch[]) =>
+      setAcknowledged((seen) => new Set([...seen, ...matches.map(matchKey)])),
+    [],
+  );
+  const published = visibility !== "private";
+  const savedId = autosave.id;
+  useEffect(() => {
+    if (!published || status !== "saved" || !savedId) return;
+    let live = true;
+    // After a moment, so that a run of saves is looked at once.
+    const timer = setTimeout(() => {
+      checkUncreditedAction({ id: savedId })
+        .then((result) => {
+          if (live && result.ok) setUncredited(result.matches);
+        })
+        .catch(() => {});
+    }, UNCREDITED_CHECK_DELAY_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [published, status, savedId]);
+  const shownUncredited = published ? unacknowledged(uncredited, acknowledged) : [];
 
   // --- The study sidebar ---
   const narrow = useNarrow();
@@ -435,6 +474,8 @@ export function PostEditor(props: PostEditorProps) {
             publishedAt={publishedAt}
             save={flush}
             blocked={status === "conflict" ? "Choose which text to keep first." : undefined}
+            acknowledged={acknowledged}
+            onAcknowledge={acknowledge}
             onPublished={(next, at) => {
               const posted = visibility === "private" && next !== "private";
               setVisibility(next);
@@ -468,6 +509,25 @@ export function PostEditor(props: PostEditorProps) {
             {failure.formError}
           </p>
         )
+      )}
+
+      {shownUncredited.length > 0 && (
+        <div
+          role="status"
+          className="border-b border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900 dark:bg-amber-950"
+        >
+          <div className="mx-auto max-w-[46rem]">
+            <UncreditedNotice matches={shownUncredited} published>
+              <button
+                type="button"
+                onClick={() => acknowledge(shownUncredited)}
+                className="mt-2 cursor-pointer text-sm font-medium text-amber-900 underline underline-offset-4 dark:text-amber-200"
+              >
+                Dismiss
+              </button>
+            </UncreditedNotice>
+          </div>
+        </div>
       )}
 
       <div className="flex min-h-0 flex-1">

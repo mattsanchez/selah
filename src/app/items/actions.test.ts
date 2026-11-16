@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   saveItemContent: vi.fn(),
   setVisibility: vi.fn(),
   listTranslations: vi.fn(),
+  findUncredited: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`redirect:${path}`);
   }),
@@ -25,11 +26,13 @@ vi.mock("@/lib/items/queries", () => ({
   saveItemContent: mocks.saveItemContent,
   setVisibility: mocks.setVisibility,
 }));
+vi.mock("@/lib/items/uncredited", () => ({ findUncredited: mocks.findUncredited }));
 vi.mock("@/lib/bible/passage", () => ({ listTranslations: mocks.listTranslations }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 
 const {
+  checkUncreditedAction,
   createDraftAction,
   createReflectionAction,
   deleteItemAction,
@@ -76,8 +79,9 @@ describe("a visitor who is not signed in", () => {
     await expect(saveItemAction(draft({ markdown: "Changed" }))).rejects.toThrow(refused);
     await expect(setVisibilityAction(form({ id: ITEM, visibility: "public" }))).rejects.toThrow(refused);
     await expect(deleteItemAction(form({ id: ITEM }))).rejects.toThrow(refused);
+    await expect(checkUncreditedAction({ id: ITEM })).rejects.toThrow(refused);
 
-    expect(mocks.requireOwner).toHaveBeenCalledTimes(6);
+    expect(mocks.requireOwner).toHaveBeenCalledTimes(7);
     for (const touched of [
       mocks.createItem,
       mocks.deleteItem,
@@ -85,6 +89,7 @@ describe("a visitor who is not signed in", () => {
       mocks.saveItemContent,
       mocks.setVisibility,
       mocks.listTranslations,
+      mocks.findUncredited,
     ]) {
       expect(touched).not.toHaveBeenCalled();
     }
@@ -308,5 +313,49 @@ describe("the owner", () => {
   it("deletes one of their own items and returns to the list", async () => {
     await expect(deleteItemAction(form({ id: ITEM }))).rejects.toThrow("redirect:/items");
     expect(mocks.deleteItem).toHaveBeenCalledExactlyOnceWith({}, { ownerId: OWNER.id, id: ITEM });
+  });
+});
+
+describe("checking a post for a note's words without its credit", () => {
+  const match = {
+    sourceId: "tyndale",
+    source: "Tyndale Open Study Notes",
+    license: "CC BY-SA 4.0",
+    licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/",
+    sourceUrl: "https://tyndaleopenresources.com/",
+    reference: "John 3:16",
+    href: "/read/john-3.16?v=john-3.16&full=tyndale",
+    words: 17,
+    excerpt: "The truth that God loved the world …",
+  };
+
+  beforeEach(() => {
+    mocks.requireOwner.mockResolvedValue(OWNER);
+    mocks.getItem.mockResolvedValue({ id: ITEM, kind: "reflection", markdown: "Saved words." });
+  });
+
+  it("checks what is saved, and changes nothing", async () => {
+    mocks.findUncredited.mockResolvedValue({ checked: true, matches: [match] });
+    expect(await checkUncreditedAction({ id: ITEM })).toEqual({ ok: true, checked: true, matches: [match] });
+    expect(mocks.getItem).toHaveBeenCalledWith({}, { ownerId: OWNER.id, id: ITEM });
+    expect(mocks.findUncredited).toHaveBeenCalledWith({}, "Saved words.");
+    expect(mocks.saveItemContent).not.toHaveBeenCalled();
+    expect(mocks.setVisibility).not.toHaveBeenCalled();
+  });
+
+  it("answers ok: false, never an error, when it cannot check", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.findUncredited.mockRejectedValue(new Error("database down"));
+    expect(await checkUncreditedAction({ id: ITEM })).toEqual({ ok: false });
+    expect(await checkUncreditedAction({ id: "not-an-id" })).toEqual({ ok: false });
+    mocks.getItem.mockResolvedValue({ id: ITEM, kind: "highlight", markdown: null });
+    expect(await checkUncreditedAction({ id: ITEM })).toEqual({ ok: false });
+    mocks.getItem.mockResolvedValue(undefined);
+    expect(await checkUncreditedAction({ id: ITEM })).toEqual({ ok: false });
+  });
+
+  it("passes on that the notes were not there to compare", async () => {
+    mocks.findUncredited.mockResolvedValue({ checked: false, matches: [] });
+    expect(await checkUncreditedAction({ id: ITEM })).toEqual({ ok: true, checked: false, matches: [] });
   });
 });
