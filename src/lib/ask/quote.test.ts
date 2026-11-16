@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { docToMarkdown, markdownToDoc, type EditorDoc } from "@/lib/items/editor-document";
+import { itemHeadline, itemSummary } from "@/lib/public-url";
 import { renderMarkdown } from "@/lib/items/markdown";
 import { shareAlikeNotice, shareAlikeQuotes } from "@/lib/items/share-alike";
 import { COMMENTARY_SOURCES } from "@/lib/study/sources";
 
 import { pickQuote } from "./commentators";
-import { makeQuote, quoteCredit, quoteNode, shortenQuote, QUOTE_MAX_WORDS, type SourceQuote } from "./quote";
+import { makeQuote, quoteCredit, quoteNode, quotedWords, shortenQuote, sourceQuoteNode, QUOTE_MAX_WORDS, type SourceQuote } from "./quote";
 import { ASK_SOURCES, SHARE_ALIKE_SOURCES, sourceLabel } from "./sources";
 
 const stored = (id: string) => {
@@ -26,6 +27,12 @@ const postWith = (quote: SourceQuote): EditorDoc => ({
     quoteNode(quote),
     { type: "paragraph", content: [{ type: "text", text: "More of my own." }] },
   ],
+});
+
+// The same post as the editor holds it now: the quote as one block.
+const editedWith = (quote: SourceQuote): EditorDoc => ({
+  ...postWith(quote),
+  content: postWith(quote).content.map((node) => (node.type === "blockquote" ? sourceQuoteNode(quote) : node)),
 });
 
 describe("the sources table", () => {
@@ -115,11 +122,18 @@ describe("a quote in a post", () => {
     expect(markdown).toContain("My own words.\n");
   });
 
-  it("survives the trip through the storage format exactly", () => {
+  it("is stored as the same blockquote whether the editor holds it as one block or not", () => {
+    expect(docToMarkdown(editedWith(note))).toBe(markdown);
+    expect(docToMarkdown(editedWith(henry))).toBe(docToMarkdown(postWith(henry)));
+  });
+
+  it("survives the trip through the storage format exactly, and opens as one block", () => {
     const opened = markdownToDoc(markdown);
-    expect(opened).toEqual(postWith(note));
+    expect(opened).toEqual(editedWith(note));
+    expect(opened.content[1].attrs).toEqual({ quote: quotedWords(note) });
     expect(docToMarkdown(opened)).toBe(markdown);
     expect(docToMarkdown(markdownToDoc(docToMarkdown(postWith(henry))))).toBe(docToMarkdown(postWith(henry)));
+    expect(markdownToDoc(docToMarkdown(postWith(henry))).content[1].type).toBe("sourceQuote");
   });
 
   it("keeps its marked cut and the literal asterisks of its words", () => {
@@ -163,5 +177,36 @@ describe("the detector", () => {
     expect(shareAlikeQuotes("I read the Tyndale Open Study Notes today.")).toEqual([]);
     expect(shareAlikeQuotes(null)).toEqual([]);
     expect(shareAlikeQuotes("")).toEqual([]);
+  });
+});
+
+// What the public side reads from a post with a share-alike quote. It reads
+// stored Markdown only, so these hold for a post saved before the editor kept
+// a quote as one block and for one saved after.
+describe("a published post with a quote from the editor", () => {
+  const markdown = docToMarkdown(editedWith(note));
+  const reflection = { kind: "reflection" as const, title: null, markdown, note: null, passages: [] };
+
+  it("prints the notice, with the credit and its links in the quote", () => {
+    expect(shareAlikeQuotes(markdown).map((source) => source.id)).toEqual(["tyndale"]);
+    const html = renderMarkdown(markdown);
+    expect(html).toMatch(/<blockquote>[\s\S]*Tyndale Open Study Notes[\s\S]*<\/blockquote>/);
+    expect(html).toContain('href="https://creativecommons.org/licenses/by-sa/4.0/"');
+  });
+
+  it("keeps the note's words and credit out of the summary and an untitled post's name", () => {
+    for (const text of [itemSummary(reflection, 1000), itemHeadline(reflection)]) {
+      expect(text).toContain("My own words.");
+      expect(text).not.toContain("God’s love");
+      expect(text).not.toContain("Tyndale");
+    }
+  });
+
+  it("still prints the notice after the post is opened and saved again, in a reflection or a note", () => {
+    for (const passages of [true, false]) {
+      const again = docToMarkdown(markdownToDoc(markdown, { passages }));
+      expect(again).toBe(markdown);
+      expect(shareAlikeQuotes(again).map((source) => source.id)).toEqual(["tyndale"]);
+    }
   });
 });
