@@ -1,4 +1,4 @@
-import { and, desc, eq, exists, inArray, notExists, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, isNull, notExists, or, sql, type SQL } from "drizzle-orm";
 
 import type { Db } from "@/db/client";
 import { item, itemPassage, itemTag, tag, verse } from "@/db/schema";
@@ -32,6 +32,8 @@ export type Item = {
   publishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  // Which editor save wrote its text (see `item.save_token`), if one did.
+  saveToken?: string | null;
   // In reading order.
   passages: ItemPassage[];
   // By name.
@@ -70,6 +72,8 @@ export type NewItem = {
   // Private unless said otherwise; anything else is published as it is made.
   visibility?: ItemVisibility;
   tags?: readonly TagName[];
+  // The token of the editor save that makes it (see `item.save_token`).
+  saveToken?: string | null;
 };
 
 // The database's connection, or a transaction on it.
@@ -199,24 +203,54 @@ export type ItemContent = {
   passages?: readonly ItemPassage[];
 };
 
+// Which save this is, and what it builds on (see `item.save_token`): it is
+// made only while the item's token is one of `after` (null standing for
+// text no editor save wrote), and the item's token is then `token`.
+export type SaveLineage = { token: string; after: readonly (string | null)[] };
+
+// True for an item whose text one of these saves wrote (null: no editor save).
+export function followsSaves(after: readonly (string | null)[]): SQL {
+  const tokens = after.filter((token): token is string => token !== null);
+  return (
+    or(
+      tokens.length > 0 ? inArray(item.saveToken, tokens) : undefined,
+      after.includes(null) ? isNull(item.saveToken) : undefined,
+    ) ?? sql`false`
+  );
+}
+
+export type SaveContentResult =
+  | { ok: true; savedAt: Date }
+  // The item's text is from a save this one does not build on: `token` is
+  // that save's.
+  | { ok: false; conflict: true; token: string | null }
+  // There is no such item.
+  | { ok: false; conflict?: undefined };
+
 // Saves the text of one of the owner's items with the passages and tags that
-// go with it, as one unit. Returns when it was saved, or undefined when there
-// is no such item.
+// go with it, as one unit. Without `lineage` (a caller that does not know
+// which save it builds on) it is saved whatever is there, and the item's
+// token is cleared.
 export async function saveItemContent(
   db: Db,
   ref: ItemRef,
   { title, markdown, tags, passages }: ItemContent,
-): Promise<Date | undefined> {
+  lineage?: SaveLineage,
+): Promise<SaveContentResult> {
   return db.transaction(async (tx) => {
+    const builds = lineage ? followsSaves(lineage.after) : undefined;
     const [saved] = await tx
       .update(item)
-      .set({ title, markdown, updatedAt: sql`now()` })
-      .where(refers(ref))
+      .set({ title, markdown, saveToken: lineage?.token ?? null, updatedAt: sql`now()` })
+      .where(and(refers(ref), builds))
       .returning({ updatedAt: item.updatedAt });
-    if (!saved) return undefined;
+    if (!saved) {
+      const [there] = await tx.select({ token: item.saveToken }).from(item).where(refers(ref)).limit(1);
+      return there ? { ok: false, conflict: true, token: there.token } : { ok: false };
+    }
     if (passages) await writePassages(tx, ref.id, passages);
     await writeTags(tx, ref.ownerId, ref.id, tags);
-    return saved.updatedAt;
+    return { ok: true, savedAt: saved.updatedAt };
   });
 }
 
@@ -242,6 +276,7 @@ const itemColumns = {
   publishedAt: item.publishedAt,
   createdAt: item.createdAt,
   updatedAt: item.updatedAt,
+  saveToken: item.saveToken,
 };
 
 // The tags of each of these items, by name.

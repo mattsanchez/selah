@@ -45,6 +45,8 @@ export type PostEditorProps = {
   kind: "reflection" | "note";
   saved: Values;
   savedAt?: string;
+  // Which save wrote what is saved (the item's `save_token`).
+  saveToken?: string | null;
   visibility: ItemVisibility;
   publishedAt: string | null;
   // Every loaded translation, the site's default first.
@@ -72,6 +74,7 @@ const STATUS: Record<SaveStatus, string> = {
   unsaved: "Unsaved changes",
   saving: "Saving…",
   failed: "Not saved",
+  conflict: "Not saved",
 };
 
 // A phone, or anything too narrow for the sidebar beside the post.
@@ -135,6 +138,7 @@ export function PostEditor(props: PostEditorProps) {
     kind,
     saved: props.saved,
     savedAt: props.savedAt,
+    saveToken: props.saveToken,
     anchor: anchor && { v: anchor.v, translationId: anchor.translationId },
     onRestore: useCallback(
       (values: Values) => {
@@ -151,7 +155,7 @@ export function PostEditor(props: PostEditorProps) {
       [reflection],
     ),
   });
-  const { status, failure, change, flush } = autosave;
+  const { status, failure, change, flush, keepMine, useSaved } = autosave;
 
   // --- The study sidebar ---
   const narrow = useNarrow();
@@ -383,7 +387,7 @@ export function PostEditor(props: PostEditorProps) {
         <p
           role="status"
           data-save-status={status}
-          className={`truncate text-sm ${status === "failed" ? "text-red-700 dark:text-red-400" : "text-stone-400 dark:text-stone-500"}`}
+          className={`truncate text-sm ${status === "failed" || status === "conflict" ? "text-red-700 dark:text-red-400" : "text-stone-400 dark:text-stone-500"}`}
         >
           {STATUS[status]}
         </p>
@@ -430,6 +434,7 @@ export function PostEditor(props: PostEditorProps) {
             visibility={visibility}
             publishedAt={publishedAt}
             save={flush}
+            blocked={status === "conflict" ? "Choose which text to keep first." : undefined}
             onPublished={(next, at) => {
               const posted = visibility === "private" && next !== "private";
               setVisibility(next);
@@ -442,10 +447,27 @@ export function PostEditor(props: PostEditorProps) {
         </div>
       </header>
 
-      {failure.formError && (
-        <p role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-center text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-          {failure.formError}
-        </p>
+      {failure.conflict ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b border-red-200 bg-red-50 px-4 py-2 text-center text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+        >
+          <p>{failure.formError}</p>
+          <span className="flex gap-3">
+            <button type="button" onClick={keepMine} className="cursor-pointer font-medium underline underline-offset-4">
+              Save my text over it
+            </button>
+            <button type="button" onClick={useSaved} className="cursor-pointer underline-offset-4 hover:underline">
+              Discard mine and open the saved version
+            </button>
+          </span>
+        </div>
+      ) : (
+        failure.formError && (
+          <p role="alert" className="border-b border-red-200 bg-red-50 px-4 py-2 text-center text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+            {failure.formError}
+          </p>
+        )
       )}
 
       <div className="flex min-h-0 flex-1">

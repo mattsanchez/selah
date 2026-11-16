@@ -13,6 +13,9 @@ type PublishMenuProps = {
   // Saves what is not saved yet (making the post if it is new) and returns
   // its id, or undefined when there is nothing to publish.
   save: () => Promise<string | undefined>;
+  // Why it cannot be published now, if it cannot (the text here conflicts
+  // with what was saved elsewhere).
+  blocked?: string;
   onPublished: (visibility: ItemVisibility, publishedAt: string | null) => void;
 };
 
@@ -30,7 +33,7 @@ const primary =
 
 // "Publish" (a note's "Post"): who may see the post, and putting it out or
 // taking it back. A post is private, a draft, until it is published.
-export function PublishMenu({ kind, visibility, publishedAt, save, onPublished }: PublishMenuProps) {
+export function PublishMenu({ kind, visibility, publishedAt, save, blocked, onPublished }: PublishMenuProps) {
   const isPublished = visibility !== "private";
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<Exclude<ItemVisibility, "private">>(isPublished ? visibility : "public");
@@ -39,6 +42,10 @@ export function PublishMenu({ kind, visibility, publishedAt, save, onPublished }
   const verb = kind === "note" ? "Post" : "Publish";
 
   const apply = async (wanted: ItemVisibility) => {
+    if (blocked) {
+      setError(blocked);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

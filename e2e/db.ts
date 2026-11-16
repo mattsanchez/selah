@@ -147,3 +147,15 @@ export async function createOwnerItem(
     await client.end();
   }
 }
+
+// Saves an item's text as the editor in another tab or on another device
+// would: a save of its own (a new `save_token`), which this page's editor
+// does not build on.
+export function saveElsewhere(id: string, markdown: string): Promise<void> {
+  return withDb(async (sql) => {
+    await sql`
+      update item set markdown = ${markdown}, save_token = gen_random_uuid()::text, updated_at = now()
+      where id = ${id}
+        and owner_id in (select id from "user" where email = ${TEST_OWNER.email})`;
+  });
+}

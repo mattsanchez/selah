@@ -83,6 +83,7 @@ export async function editorProps(db: Db, { item, kind, anchor, back }: EditorPa
     kind,
     saved: { title: item?.title ?? "", markdown, tags: formatTags(item?.tags ?? []) },
     savedAt: item?.updatedAt.toISOString(),
+    saveToken: item?.saveToken ?? null,
     visibility: item?.visibility ?? "private",
     publishedAt: item?.publishedAt?.toISOString() ?? null,
     translations: translations.map(translationInfo),

@@ -66,6 +66,14 @@ export async function createReflectionAction(form: FormData): Promise<void> {
 }
 
 const GONE = "This item no longer exists. It may have been deleted in another tab.";
+const CHANGED =
+  "This post was changed in another tab or on another device. Your text here is kept in this browser and has not been saved.";
+
+// A save's token: what the editor makes, a UUID.
+const isToken = (value: unknown): value is string => typeof value === "string" && UUID.test(value);
+// How many tokens a save may say it builds on: the one it knows was saved,
+// and the few sent since whose answers never came.
+const MAX_AFTER = 32;
 const TOO_MANY_PASSAGES = `A reflection can embed up to ${MAX_ITEM_PASSAGES} separate passages.`;
 
 export type DraftInput = {
@@ -77,6 +85,8 @@ export type DraftInput = {
   // reader's parameter has them) and the translation they were read in.
   v?: string;
   translationId?: string;
+  // The save's token (see `item.save_token`).
+  token?: string;
 };
 
 export type CreateResult =
@@ -89,10 +99,11 @@ export type CreateResult =
 // saveItemAction.
 export async function createDraftAction(input: DraftInput): Promise<CreateResult> {
   const owner = await requireOwner();
-  const { kind, title, markdown, tags, v = "", translationId = "" } = input ?? {};
+  const { kind, title, markdown, tags, v = "", translationId = "", token } = input ?? {};
   if (
     (kind !== "reflection" && kind !== "note") ||
-    [title, markdown, tags, v, translationId].some((value) => typeof value !== "string")
+    [title, markdown, tags, v, translationId].some((value) => typeof value !== "string") ||
+    (token !== undefined && !isToken(token))
   ) {
     return { ok: false, formError: "That could not be saved." };
   }
@@ -105,14 +116,14 @@ export async function createDraftAction(input: DraftInput): Promise<CreateResult
     if (!valid.ok) return { ok: false, errors: valid.errors };
     const passages = documentPassages(valid.value.markdown, translations);
     if (passages.length > MAX_ITEM_PASSAGES) return { ok: false, errors: { markdown: TOO_MANY_PASSAGES } };
-    id = await createItem(db, { ownerId: owner.id, kind, ...valid.value, passages });
+    id = await createItem(db, { ownerId: owner.id, kind, ...valid.value, passages, saveToken: token });
   } else {
     const valid = validateNotePost(
       { markdown, tags, visibility: "private", v, translationId },
       translations.map((translation) => translation.id),
     );
     if (!valid.ok) return { ok: false, errors: valid.errors };
-    id = await createItem(db, { ownerId: owner.id, kind, ...valid.value });
+    id = await createItem(db, { ownerId: owner.id, kind, ...valid.value, saveToken: token });
   }
   scheduleItemEmbedding(id);
   const created = await getItem(db, { ownerId: owner.id, id });
@@ -122,23 +133,43 @@ export async function createDraftAction(input: DraftInput): Promise<CreateResult
 export type SaveResult =
   // `savedAt` is the item's `updated_at`, as an ISO string.
   | { ok: true; savedAt: string }
-  | { ok: false; errors?: Errors<ContentField>; formError?: string };
+  // The text was saved from somewhere else since the save this one builds
+  // on (`token` is that save's): nothing was written.
+  | { ok: false; conflict: true; token: string | null; formError: string; errors?: undefined }
+  | { ok: false; conflict?: undefined; errors?: Errors<ContentField>; formError?: string };
 
 
 // What the editor's autosave calls: saves a reflection's title, Markdown and
 // tags (or a note's Markdown and tags). A reflection's passages are read from
 // the cards in its Markdown, so `item_passage` always matches the document.
+//
+// `token` is this save's and `after` the saves it builds on (see
+// `item.save_token`): it is refused, as a conflict, when the item's text is
+// from any other. Without them it is saved whatever is there.
 export async function saveItemAction(input: {
   id: string;
   title: string;
   markdown: string;
   tags: string;
+  token?: string;
+  after?: (string | null)[];
 }): Promise<SaveResult> {
   const owner = await requireOwner();
-  const { id, title, markdown, tags } = input ?? {};
+  const { id, title, markdown, tags, token, after } = input ?? {};
   if ([id, title, markdown, tags].some((value) => typeof value !== "string") || !UUID.test(id)) {
     return { ok: false, formError: GONE };
   }
+  const lineage =
+    token === undefined && after === undefined
+      ? undefined
+      : isToken(token) &&
+          Array.isArray(after) &&
+          after.length > 0 &&
+          after.length <= MAX_AFTER &&
+          after.every((base) => base === null || isToken(base))
+        ? { token, after }
+        : null;
+  if (lineage === null) return { ok: false, formError: "That could not be saved." };
 
   const db = getDb();
   const ref = { ownerId: owner.id, id };
@@ -159,10 +190,14 @@ export async function saveItemAction(input: {
 
   // Nothing on screen is rendered from what is saved: the editor is the
   // page. The owner's other pages are rendered afresh when opened.
-  const savedAt = await saveItemContent(db, ref, { ...valid.value, passages });
-  if (!savedAt) return { ok: false, formError: GONE };
+  const saved = await saveItemContent(db, ref, { ...valid.value, passages }, lineage);
+  if (!saved.ok) {
+    return saved.conflict
+      ? { ok: false, conflict: true, token: saved.token, formError: CHANGED }
+      : { ok: false, formError: GONE };
+  }
   scheduleItemEmbedding(id);
-  return { ok: true, savedAt: savedAt.toISOString() };
+  return { ok: true, savedAt: saved.savedAt.toISOString() };
 }
 
 export type PublishResult =

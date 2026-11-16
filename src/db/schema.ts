@@ -237,6 +237,12 @@ export const item = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // Which save of the editor wrote the text that is here: a token the
+    // editor made for it (src/components/editor/use-autosave.ts), or null for
+    // text written any other way. A save names the tokens it builds on and is
+    // refused when the text here is from another one, so one tab or device
+    // never silently writes over what another saved. Publishing leaves it.
+    saveToken: text("save_token"),
     // What the owner's search matches (src/lib/items/search.ts): the title at
     // weight A, the note and the Markdown at weight B. Kept up to date by
     // Postgres; never written or read as a value.
