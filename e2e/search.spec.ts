@@ -86,11 +86,20 @@ test("search for living water, narrow it, and open a result in the reader", asyn
     .locator("[data-result='43007038'][data-translation='web']")
     .getByRole("link", { name: "John 7:38" })
     .click();
-  await expect(page).toHaveURL("/read/john-7.38?t=web");
-  await expect(page.getByRole("heading", { level: 1, name: "John 7:38" })).toBeVisible();
-  await expect(page.locator("[data-passage='web'] [data-verse-id='43007038']")).toContainText(
-    "from within him will flow rivers of living water.",
-  );
+  await expect(page).toHaveURL("/read/john-7?t=web&v=john-7.38");
+  // The whole chapter, in that translation, with the verse selected and in view.
+  await expect(page.getByRole("heading", { level: 1, name: "John 7" })).toBeVisible();
+  const verse = page.locator("[data-passage='web'] [data-verse-id='43007038']");
+  await expect(verse).toContainText("from within him will flow rivers of living water.");
+  await expect(verse).toBeInViewport();
+  await expect(page.locator("[data-passage='web'] [data-verse-id='43007001']")).toHaveCount(1);
+  await expect(page.locator("#study-panel")).toBeVisible();
+  // Back returns to the results.
+  await page.goBack();
+  await expect(page).toHaveURL(/\/search\?/);
+  await expect(results(page).first()).toBeVisible();
+  await page.goForward();
+  await expect(verse).toBeInViewport();
 
   // And the same box searches again from there, in the same translation.
   await box(page).fill("bread of life");

@@ -39,7 +39,7 @@ function cardFor(data: Extract<PassageData, { ok: true }>, ranges: VerseRange[],
 export function ReadPanel({ bridge }: StudyPanelProps) {
   const { translationId, translations } = bridge;
   const [typed, setTyped] = useState(bridge.reading.query);
-  const [shown, setShown] = useState<{ query: string; data?: PassageData }>({ query: "" });
+  const [shown, setShown] = useState<{ query: string; data?: PassageData; select?: VerseRange[] }>({ query: "" });
   const [selection, setSelection] = useState<VerseRange[]>([]);
   const [loading, setLoading] = useState(false);
   const box = useRef<HTMLInputElement>(null);
@@ -49,7 +49,7 @@ export function ReadPanel({ bridge }: StudyPanelProps) {
     setLoading(true);
     const data = await fetchPassage(query, translationId, "reading");
     setLoading(false);
-    setShown({ query, data });
+    setShown({ query, data, select });
     setTyped(data.ok ? data.reference : query);
     setSelection(select);
   };
@@ -66,6 +66,16 @@ export function ReadPanel({ bridge }: StudyPanelProps) {
     if (asked.focus || !asked.query) box.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asked]);
+
+  // A passage opened with a selection (a search result): bring its first verse
+  // into view in the panel, which scrolls.
+  useEffect(() => {
+    const first = shown.select?.[0];
+    if (!first || !shown.data?.ok) return;
+    document
+      .querySelector(`[data-study-passage] [data-verse-id="${first.start}"]`)
+      ?.scrollIntoView({ block: "center" });
+  }, [shown]);
 
   // Another translation: the same passage in it.
   const readIn = useRef(translationId);

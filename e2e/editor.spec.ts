@@ -144,6 +144,38 @@ test.describe("the signed-in owner", () => {
     expect(stored.passages).toEqual(["19121001-19121002:kjv", "43014027-43014027:web", "45006023-45006023:bsb"]);
   });
 
+  test("a keyword hit in the sidebar opens in its chapter with the verse selected, and still inserts", async ({ page }) => {
+    await page.goto("/write");
+    const post = editor(page);
+    await post.title.pressSequentially("Rivers");
+    await post.title.press("Enter");
+    await post.body.pressSequentially("Streams of grace.");
+    await expect(post.status).toHaveText("Saved");
+
+    const sidebar = post.sidebar;
+    await sidebar.getByRole("tab", { name: "Search" }).click();
+    await sidebar.getByRole("radio", { name: "Keyword" }).check();
+    await sidebar.getByRole("searchbox", { name: "Search words" }).fill("living water");
+    await sidebar.getByRole("button", { name: "Search", exact: true }).click();
+    const hit = sidebar.locator("[data-search-hit='43007038']");
+    await hit.getByRole("button", { name: "Read John 7:38 in context" }).click();
+
+    // The whole chapter, the hit's verse selected and in view.
+    const reading = sidebar.getByRole("region", { name: "Reading John 7" });
+    await expect(reading).toBeVisible();
+    const verse = reading.locator("[data-verse-id='43007038']").first();
+    await expect(verse).toContainText("living water");
+    await expect(reading.locator("[data-verse-id='43007001']").first()).toBeAttached();
+    await expect(verse).toBeInViewport();
+    await expect(reading.locator("[data-selected]")).not.toHaveCount(0);
+
+    // Insert still works on the selected verse; the draft is untouched.
+    await sidebar.getByRole("button", { name: "Insert John 7:38" }).click();
+    await expect(post.passage("John 7:38")).toContainText("living water");
+    await expect(post.body).toContainText("Streams of grace.");
+    await expect(post.status).toHaveText("Saved");
+  });
+
   test("Reflect in the reader opens the editor with the passage in it", async ({ page }) => {
     await page.goto("/read/john-17.17");
     await clickVerse(page, 43017017);
