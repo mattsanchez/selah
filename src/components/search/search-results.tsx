@@ -4,7 +4,9 @@ import { Attribution } from "@/components/passage/passage";
 import type { Translation } from "@/lib/bible/passage";
 import type { SearchHit, Segment } from "@/lib/bible/search";
 import { formatReference } from "@/lib/bible/reference";
+import { chapterRange, parseVerseId } from "@/lib/bible/verse-id";
 import { readerPath, translationParam } from "@/lib/reader-url";
+import type { VerseRange } from "@/lib/bible/verse-id";
 import { verseRange } from "@/lib/search-url";
 
 // Text with the words the search matched marked.
@@ -23,18 +25,32 @@ function Highlighted({ segments }: { segments: readonly Segment[] }) {
   );
 }
 
+// Where a hit opens. A keyword hit (`inContext`) opens in its chapter, in the
+// translation it was found in, with the verse selected (the reader brings it
+// into view). Anything ranked by meaning, a single verse or a passage, opens
+// on exactly what was found.
+function href(hit: SearchHit, verse: VerseRange[], defaultId: string, inContext: boolean): string {
+  const t = translationParam([hit.translationId], defaultId);
+  const ref = inContext && !hit.endVerseId ? parseVerseId(hit.verseId) : undefined;
+  if (!ref) return readerPath(verse, t);
+  return readerPath([chapterRange(ref.book, ref.chapter)], t, { v: verse });
+}
+
 type SearchResultsProps = {
   hits: readonly SearchHit[];
   // Every translation a hit may be in.
   translations: readonly Translation[];
   defaultId: string;
+  // The results are keyword-only (SearchResults.mode is absent): hits open in
+  // their chapter. Not set for meaning and hybrid results.
+  inContext?: boolean;
 };
 
 // A page of search hits: for each, the reference (a link that opens the verse,
 // or the whole passage, in the reader, in the translation it was found in),
 // the translation, the text with matches marked, and any heading the search matched. Under the list, the attribution
 // of each translation quoted.
-export function SearchResults({ hits, translations, defaultId }: SearchResultsProps) {
+export function SearchResults({ hits, translations, defaultId, inContext = false }: SearchResultsProps) {
   const byId = new Map(translations.map((translation) => [translation.id, translation]));
   const quoted = translations.filter((translation) =>
     hits.some((hit) => hit.translationId === translation.id),
@@ -57,7 +73,7 @@ export function SearchResults({ hits, translations, defaultId }: SearchResultsPr
             >
               <h2 className="flex items-baseline gap-2 font-sans text-sm font-semibold">
                 <Link
-                  href={readerPath(verse, translationParam([hit.translationId], defaultId))}
+                  href={href(hit, verse, defaultId, inContext)}
                   className="rounded-sm text-sky-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:text-sky-400"
                 >
                   {formatReference(verse)}

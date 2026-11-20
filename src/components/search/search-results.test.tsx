@@ -54,12 +54,13 @@ describe("SearchResults", () => {
       hits={hits}
       translations={["bsb", "web", "kjv"].map(translation)}
       defaultId="bsb"
+      inContext
     />,
   );
 
   it("links each hit to its verse in the translation it was found in", () => {
-    expect(html).toContain('href="/read/john-7.38"');
-    expect(html).toContain('href="/read/psalm-23.1?t=web"');
+    expect(html).toContain('href="/read/john-7?v=john-7.38"');
+    expect(html).toContain('href="/read/psalm-23?t=web&amp;v=psalm-23.1"');
     expect(html).toContain("John 7:38");
     expect(html).toContain("Psalm 23:1");
   });
@@ -86,6 +87,16 @@ describe("SearchResults", () => {
     expect(html).toContain("Attribution of the BSB.");
     expect(html).toContain("Attribution of the WEB.");
     expect(html).not.toContain("Attribution of the KJV.");
+  });
+});
+
+describe("a single verse ranked by meaning or both", () => {
+  it("opens on the verse itself, not its chapter", () => {
+    const html = renderToStaticMarkup(
+      <SearchResults hits={[hits[0]]} translations={[translation("bsb")]} defaultId="bsb" />,
+    );
+    expect(html).toContain('href="/read/john-7.38"');
+    expect(html).not.toContain("?v=");
   });
 });
 

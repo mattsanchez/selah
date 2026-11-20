@@ -71,6 +71,22 @@ export function VerseSelect({ ranges, t, selection, add = false, children }: Ver
     element?.focus({ preventScroll: true });
   }, [selectionKey, add]);
 
+  // Arriving on a selection that is out of view (a search result deep in a
+  // chapter): bring its first verse into view. One already on screen, as after
+  // a click, is left where it is.
+  useEffect(() => {
+    if (selection.length === 0) return;
+    const id = selection[0].start;
+    const verse = root.current?.querySelector<HTMLElement>(
+      `[data-verse-id="${id}"], [data-verse-row="${id}"]`,
+    );
+    if (!verse) return;
+    const { top, bottom } = verse.getBoundingClientRect();
+    if (top < 0 || bottom > window.innerHeight) verse.scrollIntoView({ block: "center" });
+    // Only on arrival: the selection key is what the page was rendered with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (selection.length === 0) return;
     const verseId = selection[0].start;
