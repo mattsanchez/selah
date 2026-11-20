@@ -219,6 +219,7 @@ export default async function SearchPage({ searchParams }: Props) {
                   hits={results.hits}
                   translations={translations}
                   defaultId={defaultId}
+                  inContext={!results.mode}
                 />
               </div>
             )}

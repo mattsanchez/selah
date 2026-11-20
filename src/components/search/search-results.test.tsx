@@ -54,6 +54,7 @@ describe("SearchResults", () => {
       hits={hits}
       translations={["bsb", "web", "kjv"].map(translation)}
       defaultId="bsb"
+      inContext
     />,
   );
 
@@ -86,6 +87,16 @@ describe("SearchResults", () => {
     expect(html).toContain("Attribution of the BSB.");
     expect(html).toContain("Attribution of the WEB.");
     expect(html).not.toContain("Attribution of the KJV.");
+  });
+});
+
+describe("a single verse ranked by meaning or both", () => {
+  it("opens on the verse itself, not its chapter", () => {
+    const html = renderToStaticMarkup(
+      <SearchResults hits={[hits[0]]} translations={[translation("bsb")]} defaultId="bsb" />,
+    );
+    expect(html).toContain('href="/read/john-7.38"');
+    expect(html).not.toContain("?v=");
   });
 });
 
